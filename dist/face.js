@@ -927,7 +927,22 @@ export class BmoFaceController {
         ctx.quadraticCurveTo(0, curH * 1.02 + 7, eyeW * 0.42, curH * 0.88 + 4);
         ctx.stroke();
 
-        // 6. Upper Eyelid Double-Lid Crease
+        // 6. Warm Upper Eyelid Subsurface Eyeshadow Tint & Double-Lid Crease
+        const lidBlush = ctx.createLinearGradient(0, -curH * 1.25 - 12, 0, -curH * 0.7);
+        lidBlush.addColorStop(0, 'rgba(235, 130, 126, 0.0)');
+        lidBlush.addColorStop(0.55, 'rgba(235, 130, 126, 0.24)');
+        lidBlush.addColorStop(1, 'rgba(235, 130, 126, 0.06)');
+        ctx.fillStyle = lidBlush;
+        ctx.beginPath();
+        ctx.ellipse(0, -curH * 0.92 - 4, eyeW * 0.82, 11, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Warm rose smudge at outer corner of eye
+        ctx.fillStyle = 'rgba(218, 96, 108, 0.26)';
+        ctx.beginPath();
+        ctx.arc(outerX * 0.92, 2, 7.5, 0, Math.PI * 2);
+        ctx.fill();
+
         ctx.strokeStyle = 'rgba(92, 42, 30, 0.58)';
         ctx.lineWidth = 2.4;
         ctx.beginPath();
@@ -1154,6 +1169,14 @@ export class BmoFaceController {
       ctx.fillStyle = cavityGrad;
       ctx.fill();
       ctx.clip();
+
+      // Deep soft-palate throat arch shadow for wide-open vowels ('A', 'Oh')
+      if (m.open > 0.6) {
+        ctx.fillStyle = 'rgba(30, 4, 10, 0.55)';
+        ctx.beginPath();
+        ctx.ellipse(0, (topY + botY) * 0.42, halfW * 0.48, (botY - topY) * 0.34, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
 
       // 3. Articulated Anime Tongue & Retroflex/Alveolar Tongue Tip ('L', 'D', 'R')
       if (m.tongue > 0.05) {
