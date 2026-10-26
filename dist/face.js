@@ -267,6 +267,18 @@ export class BmoFaceController {
     }
   }
 
+  /**
+   * Sets one of the 4 discrete anime blink stages (0 = open, 1 = 3/4, 2 = half, 3 = closed).
+   */
+  setBlinkStage(stage) {
+    const map = [0.0, 0.35, 0.65, 1.0];
+    const b = map[clamp(Math.round(stage), 0, 3)];
+    this.blinkStep = b;
+    this.targetBlink = b;
+    this.eyesOpen = b < 0.8;
+    this.render(performance.now());
+  }
+
   blink() {
     this.setEyes(false);
     clearTimeout(this._unblinkTimer);
@@ -1016,8 +1028,13 @@ export class BmoFaceController {
     ctx.ellipse(5.5, 7, 2.2, 1.3, -0.25, 0, Math.PI * 2);
     ctx.fill();
 
-    // 4. Dewy anime nose-tip pearl highlight
-    ctx.fillStyle = 'rgba(255, 252, 248, 0.85)';
+    // 4. Soft nose-tip coral blush & dewy pearl highlight
+    ctx.fillStyle = 'rgba(255, 118, 134, 0.24)';
+    ctx.beginPath();
+    ctx.ellipse(0, 3, 9, 5.5, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = 'rgba(255, 252, 248, 0.88)';
     ctx.beginPath();
     ctx.ellipse(2.8, 1.2, 3.0, 4.8, -0.18, 0, Math.PI * 2);
     ctx.fill();
