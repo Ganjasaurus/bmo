@@ -60,6 +60,62 @@ let playbackToken = 0;
 let playbackQueue = Promise.resolve();
 let pendingBlockedSpeech = null;
 
+const UTTERANCE_DB = 'bmo-utterance-cache-v1';
+const UTTERANCE_STORE = 'utterances';
+
+function openUtteranceDB() {
+  return new Promise((resolve) => {
+    if (typeof indexedDB === 'undefined') {
+      resolve(null);
+      return;
+    }
+    try {
+      const req = indexedDB.open(UTTERANCE_DB, 1);
+      req.onupgradeneeded = () => {
+        const db = req.result;
+        if (!db.objectStoreNames.contains(UTTERANCE_STORE)) {
+          db.createObjectStore(UTTERANCE_STORE);
+        }
+      };
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => resolve(null);
+    } catch {
+      resolve(null);
+    }
+  });
+}
+
+async function getCachedUtterance(key) {
+  const db = await openUtteranceDB();
+  if (!db) return null;
+  return new Promise((resolve) => {
+    try {
+      const tx = db.transaction(UTTERANCE_STORE, 'readonly');
+      const req = tx.objectStore(UTTERANCE_STORE).get(key);
+      req.onsuccess = () => resolve(req.result || null);
+      req.onerror = () => resolve(null);
+    } catch {
+      resolve(null);
+    }
+  });
+}
+
+async function setCachedUtterance(key, val) {
+  if (!val?.pcmFloat32 || val.pcmFloat32.length > 16000 * 12) return;
+  const db = await openUtteranceDB();
+  if (!db) return;
+  try {
+    const copy = {
+      pcmFloat32: new Float32Array(val.pcmFloat32),
+      sampleRate: val.sampleRate || 16000,
+      timeline: val.timeline || [],
+      duration: val.duration || 0,
+    };
+    const tx = db.transaction(UTTERANCE_STORE, 'readwrite');
+    tx.objectStore(UTTERANCE_STORE).put(copy, key);
+  } catch {}
+}
+
 export function getAudioContext() {
   const Ctor = globalThis.AudioContext || globalThis.webkitAudioContext;
   if (!Ctor) return null;
@@ -238,9 +294,20 @@ export function initVoice() {
   return initPromise;
 }
 
-export function synthesizePiper(text, lengthScale = speech.lengthScale) {
+export async function synthesizePiper(text, lengthScale = speech.lengthScale) {
+  const cacheKey = `${lengthScale}:${text}`;
+  const cached = await getCachedUtterance(cacheKey);
+  if (cached?.pcmFloat32?.length) {
+    return {
+      pcmFloat32: new Float32Array(cached.pcmFloat32),
+      sampleRate: cached.sampleRate || 16000,
+      timeline: cached.timeline || [],
+      duration: cached.duration || 0,
+    };
+  }
+
   const w = ensureWorker();
-  return new Promise((resolve, reject) => {
+  const result = await new Promise((resolve, reject) => {
     const id = ++workerReqId;
     const timer = setTimeout(() => {
       pendingSynth.delete(id);
@@ -254,6 +321,9 @@ export function synthesizePiper(text, lengthScale = speech.lengthScale) {
       lengthScale,
     });
   });
+
+  void setCachedUtterance(cacheKey, result);
+  return result;
 }
 
 function stopActiveSync() {

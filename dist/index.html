@@ -2,14 +2,14 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <title>BMO</title>
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='14' fill='%23ffceb3'/><circle cx='20' cy='24' r='5' fill='%23101116'/><circle cx='44' cy='24' r='5' fill='%23101116'/><path d='M20 42 Q32 52 44 42' stroke='%238e233d' stroke-width='4' fill='none' stroke-linecap='round'/></svg>" />
-  <link rel="stylesheet" href="./style.css?v=2" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='14' fill='%2368cbb5'/><circle cx='20' cy='26' r='5.5' fill='%23185a37'/><circle cx='44' cy='26' r='5.5' fill='%23185a37'/><path d='M22 44 Q32 52 42 44' stroke='%238e233d' stroke-width='4' fill='none' stroke-linecap='round'/></svg>" />
+  <link rel="stylesheet" href="./style.css?v=3" />
 </head>
 <body>
   <main class="bmo-shell" id="bmo-shell">
-    <section class="bmo-face-frame" id="bmo-face-frame" aria-label="BMO Face">
+    <section class="bmo-face-frame" id="bmo-face-frame" aria-label="BMO Anime Face">
       <canvas
         id="bmo-face-canvas"
         width="600"
@@ -17,6 +17,7 @@
         data-viseme="Neutral"
         data-eyes="open"
       ></canvas>
+      <span class="bmo-viseme-badge" id="bmo-viseme-badge" title="Current Viseme Mouth">Neutral</span>
     </section>
 
     <section class="bmo-hud" aria-live="polite">
@@ -26,10 +27,12 @@
       </div>
 
       <div class="bmo-progress-wrap" id="bmo-progress-wrap">
-        <div class="bmo-progress-bar" id="bmo-progress-bar" style="width: 4%"></div>
+        <div class="bmo-progress-bar" id="bmo-progress-bar" style="width: 6%"></div>
       </div>
 
-      <p class="bmo-caption" id="bmo-caption">Say hello to BMO or hold Space to talk</p>
+      <p class="bmo-caption" id="bmo-caption">Hi friend! I am BMO! Say hello or tap the keyboard to chat.</p>
+
+      <div class="bmo-history-strip" id="bmo-history-strip" hidden></div>
     </section>
 
     <section class="bmo-controls">
@@ -41,7 +44,7 @@
         aria-label="Talk to BMO"
       >
         <span class="mic-ring" id="mic-ring"></span>
-        <svg class="mic-icon" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <svg class="mic-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <rect x="9" y="2" width="6" height="12" rx="3"></rect>
           <path d="M5 10v1a7 7 0 0 0 14 0v-1"></path>
           <line x1="12" y1="18" x2="12" y2="22"></line>
@@ -52,7 +55,7 @@
 
       <button
         type="button"
-        class="bmo-kbd-toggle"
+        class="bmo-icon-toggle"
         id="btn-keyboard"
         title="Type instead of talk"
         aria-label="Toggle keyboard text box"
@@ -69,6 +72,21 @@
           <line x1="8" y1="15" x2="16" y2="15"></line>
         </svg>
       </button>
+
+      <button
+        type="button"
+        class="bmo-icon-toggle"
+        id="btn-image"
+        title="Local Image Studio — generate art with BMO"
+        aria-label="Toggle local image generator"
+        aria-expanded="false"
+      >
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="3" width="18" height="18" rx="3"></rect>
+          <circle cx="8.5" cy="8.5" r="1.5"></circle>
+          <path d="M21 15l-5-5L5 21"></path>
+        </svg>
+      </button>
     </section>
 
     <form class="bmo-keyboard-box" id="keyboard-box" hidden>
@@ -76,13 +94,49 @@
         type="text"
         id="prompt-input"
         class="bmo-prompt-input"
-        placeholder="Type something to BMO…"
+        placeholder="Type to BMO (or 'draw a sunset forest')…"
         autocomplete="off"
       />
       <button type="submit" class="bmo-send-btn" id="btn-send">Send</button>
     </form>
+
+    <section class="bmo-image-studio" id="image-studio" hidden aria-label="BMO Local Image Studio">
+      <div class="bmo-studio-header">
+        <span class="bmo-studio-title">BMO Local Image Studio</span>
+        <span class="bmo-studio-step" id="img-step-status">Ready</span>
+        <button type="button" class="bmo-studio-close" id="btn-img-close" aria-label="Close Image Studio">✕</button>
+      </div>
+
+      <div class="bmo-studio-body">
+        <div class="bmo-studio-canvas-wrap">
+          <canvas id="bmo-image-canvas" width="512" height="512"></canvas>
+        </div>
+
+        <form class="bmo-studio-controls" id="image-form">
+          <input
+            type="text"
+            id="image-prompt-input"
+            class="bmo-prompt-input"
+            placeholder="Describe what BMO should paint…"
+            value="BMO in a glowing emerald forest at sunset"
+            autocomplete="off"
+          />
+          <div class="bmo-studio-row">
+            <select id="image-style-select" class="bmo-style-select" aria-label="Art Style">
+              <option value="anime">Anime Studio</option>
+              <option value="ghibli">Dreamy Meadow</option>
+              <option value="cyberpunk">Neon Cyber</option>
+              <option value="pixel">16-Bit Pixel</option>
+              <option value="watercolor">Storybook Ink</option>
+            </select>
+            <button type="submit" class="bmo-send-btn" id="btn-img-generate">Paint</button>
+            <button type="button" class="bmo-secondary-btn" id="btn-img-download" title="Download PNG">Save</button>
+          </div>
+        </form>
+      </div>
+    </section>
   </main>
 
-  <script type="module" src="./app.js?v=2"></script>
+  <script type="module" src="./app.js?v=3"></script>
 </body>
 </html>

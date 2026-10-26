@@ -1,4 +1,4 @@
-import { ai, subscribeAI, autoBootAI, complete } from './ai.js?v=2';
+import { ai, subscribeAI, autoBootAI, complete } from './ai.js?v=3';
 import {
   speech,
   subscribeSpeech,
@@ -8,9 +8,9 @@ import {
   stopSpeech,
   unlockAudio,
   flushPendingSpeech,
-} from './speech.js?v=2';
-import { BmoFaceController } from './face.js?v=2';
-import { ConversationMemory } from './memory.js?v=2';
+} from './speech.js?v=3';
+import { BmoFaceController } from './face.js?v=3';
+import { ConversationMemory, BMO_PERSONALITY, MAX_HISTORY } from './memory.js?v=3';
 import {
   mic,
   subscribeMic,
@@ -22,16 +22,46 @@ import {
   stopListening,
   toggleListening,
   setPausedForSpeech,
-} from './listening.js?v=2';
+} from './listening.js?v=3';
+import {
+  detectImageRequest,
+  generateLocalArtwork,
+  saveToGallery,
+} from './image-gen.js?v=3';
 
-const memory = new ConversationMemory();
+const memory = new ConversationMemory(BMO_PERSONALITY, MAX_HISTORY, { persist: true });
 let face = null;
 let spaceDown = false;
 let keyboardOpen = false;
+let imageStudioOpen = false;
 let greetedOnVoiceReady = false;
 let greetedOnAiReady = false;
+let lastGeneratedImage = null;
+let imageGenerating = false;
 
 const els = {};
+
+function renderHistoryStrip() {
+  if (!els.historyStrip) return;
+  const turns = memory.historyTurns().slice(-4);
+  if (!turns.length) {
+    els.historyStrip.hidden = true;
+    els.historyStrip.innerHTML = '';
+    return;
+  }
+  els.historyStrip.hidden = false;
+  els.historyStrip.innerHTML = '';
+  for (const t of turns) {
+    const row = document.createElement('div');
+    row.className = 'bmo-history-item';
+    const who = document.createElement('strong');
+    who.textContent = t.role === 'user' ? 'You: ' : 'BMO: ';
+    row.appendChild(who);
+    row.appendChild(document.createTextNode(t.content));
+    els.historyStrip.appendChild(row);
+  }
+  els.historyStrip.scrollTop = els.historyStrip.scrollHeight;
+}
 
 function buildWarmupReply(promptText) {
   const lower = String(promptText || '').toLowerCase();
@@ -73,6 +103,7 @@ function refreshStatusUI() {
   }
 
   if (speech.status === 'speaking') {
+    face?.setMood('talking');
     els.status.textContent = speech.autoplayBlocked ? 'Tap BMO to unmute voice' : 'Talking';
     els.statusDot.dataset.state = 'talking';
     if (speech.currentSentence) {
@@ -88,22 +119,27 @@ function refreshStatusUI() {
   }
 
   if (mic.transcribing) {
+    face?.setMood('thinking');
     els.status.textContent = 'Transcribing…';
     els.statusDot.dataset.state = 'thinking';
     return;
   }
 
   if (mic.vadActive) {
+    face?.setMood('listening');
     els.status.textContent = 'Hearing you…';
     els.statusDot.dataset.state = 'listening';
     return;
   }
 
   if (ai.busy) {
+    face?.setMood('thinking');
     els.status.textContent = 'Thinking…';
     els.statusDot.dataset.state = 'thinking';
     return;
   }
+
+  face?.setMood('happy');
 
   if (!bothReady) {
     els.statusDot.dataset.state = ai.status === 'error' ? 'error' : 'loading';
@@ -157,6 +193,36 @@ function refreshMicUI() {
   }
 }
 
+export async function runImageGeneration(promptText, styleId) {
+  const chosenStyle = styleId || els.imageStyleSelect?.value || 'anime';
+  const cleanPrompt = String(promptText || els.imagePromptInput?.value || 'BMO in an emerald forest at sunset').trim();
+  if (els.imagePromptInput) els.imagePromptInput.value = cleanPrompt;
+  toggleImageStudio(true, { skipAutoGenerate: true });
+  imageGenerating = true;
+
+  try {
+    const result = await generateLocalArtwork(els.imageCanvas, cleanPrompt, {
+      styleId: chosenStyle,
+      onStep: ({ step, totalSteps, label }) => {
+        if (els.imgStepStatus) {
+          els.imgStepStatus.textContent = `Step ${step}/${totalSteps} · ${label}`;
+        }
+      },
+    });
+
+    if (result) {
+      lastGeneratedImage = result;
+      saveToGallery(result);
+      if (els.imgStepStatus) {
+        els.imgStepStatus.textContent = `Painted (${chosenStyle})`;
+      }
+    }
+    return result;
+  } finally {
+    imageGenerating = false;
+  }
+}
+
 export async function submitUserPrompt(rawText) {
   const prompt = String(rawText || '').trim();
   if (!prompt) return;
@@ -168,17 +234,32 @@ export async function submitUserPrompt(rawText) {
     els.caption.textContent = `You: "${prompt}"`;
   }
 
+  // Check if the user asked BMO to draw/paint/generate an image!
+  const imageSubject = detectImageRequest(prompt);
+  if (imageSubject) {
+    const artReply = `Ooh! I love painting! Watch me paint ${imageSubject} for you right now!`;
+    memory.addUser(prompt);
+    memory.addAssistant(artReply);
+    renderHistoryStrip();
+    if (els.caption) els.caption.textContent = artReply;
+    void runImageGeneration(imageSubject);
+    await speakSentence(artReply);
+    return;
+  }
+
   // If Qwen 0.5B hasn't finished downloading yet, BMO still responds conversationally with its ONNX voice & visemes!
   if (ai.status !== 'ready') {
     const warmupLine = buildWarmupReply(prompt);
     memory.addUser(prompt);
     memory.addAssistant(warmupLine);
+    renderHistoryStrip();
     if (els.caption) els.caption.textContent = warmupLine;
     await speakSentence(warmupLine);
     return;
   }
 
   memory.addUser(prompt);
+  renderHistoryStrip();
   const messages = memory.snapshot();
 
   try {
@@ -198,6 +279,7 @@ export async function submitUserPrompt(rawText) {
     });
 
     memory.addAssistant(reply);
+    renderHistoryStrip();
     if (els.caption) {
       els.caption.textContent = reply;
     }
@@ -213,7 +295,7 @@ export async function submitUserPrompt(rawText) {
   }
 }
 
-function toggleKeyboardBox(forceOpen) {
+export function toggleKeyboardBox(forceOpen) {
   keyboardOpen = typeof forceOpen === 'boolean' ? forceOpen : !keyboardOpen;
   if (els.keyboardBox) {
     els.keyboardBox.hidden = !keyboardOpen;
@@ -223,6 +305,19 @@ function toggleKeyboardBox(forceOpen) {
   }
   if (keyboardOpen && els.promptInput) {
     els.promptInput.focus();
+  }
+}
+
+export function toggleImageStudio(forceOpen, { skipAutoGenerate = false } = {}) {
+  imageStudioOpen = typeof forceOpen === 'boolean' ? forceOpen : !imageStudioOpen;
+  if (els.imageStudio) {
+    els.imageStudio.hidden = !imageStudioOpen;
+  }
+  if (els.imgBtn) {
+    els.imgBtn.setAttribute('aria-expanded', String(imageStudioOpen));
+  }
+  if (imageStudioOpen && !lastGeneratedImage && !imageGenerating && !skipAutoGenerate) {
+    void runImageGeneration(els.imagePromptInput?.value || 'BMO in a glowing emerald forest at sunset');
   }
 }
 
@@ -255,11 +350,13 @@ async function bootModelsAndGreet() {
 async function initApp() {
   els.canvas = document.getElementById('bmo-face-canvas');
   els.faceFrame = document.getElementById('bmo-face-frame');
+  els.visemeBadge = document.getElementById('bmo-viseme-badge');
   els.status = document.getElementById('bmo-status');
   els.statusDot = document.getElementById('bmo-status-dot');
   els.progressWrap = document.getElementById('bmo-progress-wrap');
   els.progressBar = document.getElementById('bmo-progress-bar');
   els.caption = document.getElementById('bmo-caption');
+  els.historyStrip = document.getElementById('bmo-history-strip');
   els.micBtn = document.getElementById('btn-mic');
   els.micLabel = document.getElementById('btn-mic-label');
   els.micRing = document.getElementById('mic-ring');
@@ -267,12 +364,28 @@ async function initApp() {
   els.keyboardBox = document.getElementById('keyboard-box');
   els.promptInput = document.getElementById('prompt-input');
 
+  els.imgBtn = document.getElementById('btn-image');
+  els.imageStudio = document.getElementById('image-studio');
+  els.imgCloseBtn = document.getElementById('btn-img-close');
+  els.imageCanvas = document.getElementById('bmo-image-canvas');
+  els.imageForm = document.getElementById('image-form');
+  els.imagePromptInput = document.getElementById('image-prompt-input');
+  els.imageStyleSelect = document.getElementById('image-style-select');
+  els.imgDownloadBtn = document.getElementById('btn-img-download');
+  els.imgStepStatus = document.getElementById('img-step-status');
+
+  // Render saved conversation history immediately (<2ms)
+  renderHistoryStrip();
+
   face = new BmoFaceController(els.canvas);
   await face.loadSprites('./assets/face');
 
-  // Wire Piper viseme events directly to BMO's face canvas
+  // Wire Piper viseme events directly to BMO's anime face canvas & badge
   subscribeViseme((visemeName) => {
     face.setFace(visemeName);
+    if (els.visemeBadge) {
+      els.visemeBadge.textContent = visemeName;
+    }
   });
 
   // Pause mic recognition while BMO is speaking so BMO doesn't transcribe itself
@@ -326,6 +439,29 @@ async function initApp() {
     toggleKeyboardBox();
   });
 
+  els.imgBtn?.addEventListener('click', () => {
+    void unlockAudio();
+    flushPendingSpeech();
+    toggleImageStudio();
+  });
+
+  els.imgCloseBtn?.addEventListener('click', () => {
+    toggleImageStudio(false);
+  });
+
+  els.imageForm?.addEventListener('submit', (e) => {
+    e.preventDefault();
+    void runImageGeneration(els.imagePromptInput?.value, els.imageStyleSelect?.value);
+  });
+
+  els.imgDownloadBtn?.addEventListener('click', () => {
+    if (!els.imageCanvas) return;
+    const link = document.createElement('a');
+    link.download = `bmo-art-${Date.now()}.png`;
+    link.href = els.imageCanvas.toDataURL('image/png');
+    link.click();
+  });
+
   els.keyboardBox?.addEventListener('submit', (e) => {
     e.preventDefault();
     const text = els.promptInput?.value?.trim() || '';
@@ -335,13 +471,16 @@ async function initApp() {
     }
   });
 
-  // Push-to-talk with Spacebar (just like original desktop BMO!) when not typing in text box
+  // Push-to-talk with Spacebar when not typing in an input box
   window.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && keyboardOpen) {
-      toggleKeyboardBox(false);
+    if (e.key === 'Escape') {
+      if (keyboardOpen) toggleKeyboardBox(false);
+      if (imageStudioOpen) toggleImageStudio(false);
       return;
     }
-    if (e.code === 'Space' && document.activeElement !== els.promptInput && !spaceDown) {
+    const active = document.activeElement;
+    const isTyping = active === els.promptInput || active === els.imagePromptInput;
+    if (e.code === 'Space' && !isTyping && !spaceDown) {
       e.preventDefault();
       spaceDown = true;
       void unlockAudio();
@@ -369,7 +508,10 @@ async function initApp() {
     speakSentence,
     transcribeAudioFloat32,
     toggleKeyboardBox,
+    toggleImageStudio,
+    runImageGeneration,
   };
+  window.__BMO_DEBUG = window.bmo;
 
   void bootModelsAndGreet();
 }

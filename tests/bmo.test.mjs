@@ -13,6 +13,8 @@ import {
 } from '../dist/visemes.js';
 import { ConversationMemory, BMO_PERSONALITY } from '../dist/memory.js';
 import { downsampleTo16k } from '../dist/listening.js';
+import { VISEME_SHAPES } from '../dist/face.js';
+import { detectImageRequest, parsePromptScene, IMAGE_STYLES } from '../dist/image-gen.js';
 
 const ROOT = process.cwd();
 
@@ -138,4 +140,34 @@ test('Local Moonshine ONNX STT worker and 16kHz microphone downsampler work clea
   }
   const out16k = downsampleTo16k(src48k, 48000);
   assert.equal(out16k.length, 1600);
+});
+
+test('Anime 12-viseme rig defines anatomically distinct mouth parameters for every viseme', () => {
+  for (const name of FACE_NAMES) {
+    const shape = VISEME_SHAPES[name];
+    assert.ok(shape, `Missing VISEME_SHAPES entry for ${name}`);
+    assert.equal(typeof shape.open, 'number');
+    assert.equal(typeof shape.width, 'number');
+    assert.equal(typeof shape.round, 'number');
+    assert.equal(typeof shape.upperTeeth, 'number');
+    assert.equal(typeof shape.tongue, 'number');
+  }
+  assert.ok(VISEME_SHAPES.Neutral.open <= 0.05);
+  assert.equal(VISEME_SHAPES.M.open, 0);
+  assert.ok(VISEME_SHAPES.A.open > 0.75);
+  assert.ok(VISEME_SHAPES.Oh.round > 0.8);
+  assert.ok(VISEME_SHAPES.L.tongueTip > 0.7);
+  assert.ok(VISEME_SHAPES.F.lipBite > 0.7);
+});
+
+test('Local Image Generator detects drawing requests and parses scene descriptors', () => {
+  assert.equal(detectImageRequest('Draw a glowing cyberpunk city at night'), 'glowing cyberpunk city at night');
+  assert.equal(detectImageRequest('Can you paint a cute cat in the forest?'), 'cute cat in the forest');
+  assert.equal(detectImageRequest('How are you doing today?'), null);
+
+  const scene = parsePromptScene('a glowing cyberpunk city at night with neon rain', 'cyberpunk');
+  assert.equal(scene.styleId, 'cyberpunk');
+  assert.equal(scene.subject, 'castle');
+  assert.equal(scene.hasStars, true);
+  assert.ok(IMAGE_STYLES.length >= 5);
 });
