@@ -1,4 +1,4 @@
-import { ai, subscribeAI, autoBootAI, complete } from './ai.js?v=6';
+import { ai, subscribeAI, autoBootAI, complete } from './ai.js?v=7';
 import {
   speech,
   subscribeSpeech,
@@ -8,10 +8,10 @@ import {
   stopSpeech,
   unlockAudio,
   flushPendingSpeech,
-} from './speech.js?v=6';
-import { BmoFaceController } from './face.js?v=6';
-import { FACE_NAMES } from './visemes.js?v=6';
-import { ConversationMemory, BMO_PERSONALITY, MAX_HISTORY } from './memory.js?v=6';
+} from './speech.js?v=7';
+import { BmoFaceController } from './face.js?v=7';
+import { FACE_NAMES } from './visemes.js?v=7';
+import { ConversationMemory, BMO_PERSONALITY, MAX_HISTORY } from './memory.js?v=7';
 import {
   mic,
   subscribeMic,
@@ -23,14 +23,14 @@ import {
   stopListening,
   toggleListening,
   setPausedForSpeech,
-} from './listening.js?v=6';
+} from './listening.js?v=7';
 import {
   IMAGE_PRESETS,
   detectImageRequest,
   generateLocalArtwork,
   loadSavedGallery,
   saveToGallery,
-} from './image-gen.js?v=6';
+} from './image-gen.js?v=7';
 
 const memory = new ConversationMemory(BMO_PERSONALITY, MAX_HISTORY, { persist: true });
 let face = null;

@@ -9,6 +9,7 @@ export const IMAGE_STYLES = [
 ];
 
 export const IMAGE_PRESETS = [
+  { label: 'Anime Heroine', prompt: 'Anime heroine portrait under starry twilight sky', styleId: 'anime' },
   { label: 'BMO Forest', prompt: 'BMO in a glowing emerald forest at sunset', styleId: 'anime' },
   { label: 'Cyber City', prompt: 'Neon cyberpunk city skyline at night with rain', styleId: 'cyberpunk' },
   { label: 'Sakura Shrine', prompt: 'Blossoming sakura cherry tree by a mystical moonlit lake', styleId: 'ghibli' },
@@ -405,29 +406,98 @@ function drawFocalSubject(ctx, w, h, scene, rng) {
       ctx.fill();
     }
   } else {
-    // Heroic Anime Traveler Silhouette with Wind-Swept Scarf & Rim Light
-    ctx.translate(cx, cy + 20);
+    // Detailed Anime Heroine Bust Portrait with Jewel Eyes & Wind-Swept Hair
+    ctx.translate(cx, cy + 16);
+
+    // Back wind-swept hair
+    ctx.fillStyle = '#18423f';
     ctx.beginPath();
-    ctx.moveTo(-14, -22);
-    ctx.quadraticCurveTo(-68, -10 + rng() * 12, -96, 18);
-    ctx.quadraticCurveTo(-48, 24, -10, 4);
+    ctx.moveTo(-48, -55);
+    ctx.bezierCurveTo(-55, -105, 55, -105, 48, -55);
+    ctx.bezierCurveTo(66, -10, 74, 35, 45, 52);
+    ctx.lineTo(-45, 52);
+    ctx.bezierCurveTo(-68, 35, -62, -10, -48, -55);
     ctx.closePath();
-    ctx.fillStyle = palette.accent;
     ctx.fill();
 
-    ctx.fillStyle = '#121629';
-    ctx.strokeStyle = palette.sunColor;
-    ctx.lineWidth = 2;
+    // Glowing wind-swept scarf
+    ctx.fillStyle = palette.accent;
     ctx.beginPath();
-    ctx.arc(0, -44, 20, 0, Math.PI * 2);
+    ctx.moveTo(-18, 6);
+    ctx.quadraticCurveTo(-78, 12 + rng() * 10, -110, 38);
+    ctx.quadraticCurveTo(-55, 44, -10, 22);
+    ctx.closePath();
+    ctx.fill();
+
+    // Shoulders / Cloak
+    ctx.fillStyle = '#12182b';
+    ctx.beginPath();
+    ctx.moveTo(-46, 62);
+    ctx.quadraticCurveTo(0, 12, 46, 62);
+    ctx.closePath();
+    ctx.fill();
+
+    // Sculpted Anime Face
+    ctx.fillStyle = '#ffe3cf';
+    ctx.strokeStyle = '#52271d';
+    ctx.lineWidth = 2.4;
+    ctx.beginPath();
+    ctx.moveTo(-36, -56);
+    ctx.bezierCurveTo(-36, -92, 36, -92, 36, -56);
+    ctx.bezierCurveTo(36, -28, 22, -6, 0, -2);
+    ctx.bezierCurveTo(-22, -6, -36, -28, -36, -56);
+    ctx.closePath();
     ctx.fill();
     ctx.stroke();
 
+    // Emerald Anime Eyes with White Catchlights
+    for (const side of [-1, 1]) {
+      const ex = side * 14;
+      const ey = -42;
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.ellipse(ex, ey, 8.5, 7, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#24b868';
+      ctx.beginPath();
+      ctx.arc(ex, ey, 5.8, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#0c1c18';
+      ctx.beginPath();
+      ctx.arc(ex, ey, 3.0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(ex - 2, ey - 2, 2.0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#12131c';
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.arc(ex, ey - 1, 8.5, Math.PI * 1.1, Math.PI * 1.9);
+      ctx.stroke();
+    }
+
+    // Cheek Blush & Smile
+    ctx.fillStyle = 'rgba(255, 110, 130, 0.45)';
     ctx.beginPath();
-    ctx.moveTo(-23, 52);
-    ctx.lineTo(-16, -22);
-    ctx.lineTo(16, -22);
-    ctx.lineTo(23, 52);
+    ctx.ellipse(-20, -31, 6.5, 3.5, 0, 0, Math.PI * 2);
+    ctx.ellipse(20, -31, 6.5, 3.5, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.strokeStyle = '#b84250';
+    ctx.lineWidth = 2.2;
+    ctx.beginPath();
+    ctx.arc(0, -23, 7, 0.15 * Math.PI, 0.85 * Math.PI);
+    ctx.stroke();
+
+    // Front Hair Bangs & Angel Ring
+    ctx.fillStyle = '#24665f';
+    ctx.beginPath();
+    ctx.moveTo(-40, -48);
+    ctx.bezierCurveTo(-40, -96, 40, -96, 40, -48);
+    ctx.quadraticCurveTo(22, -62, 8, -48);
+    ctx.quadraticCurveTo(0, -65, -10, -48);
+    ctx.quadraticCurveTo(-24, -62, -40, -48);
     ctx.closePath();
     ctx.fill();
   }

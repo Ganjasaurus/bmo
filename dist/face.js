@@ -799,16 +799,29 @@ export class BmoFaceController {
         ctx.ellipse(ix, iy, pupilR, pupilR * 1.06, 0, 0, Math.PI * 2);
         ctx.fill();
 
-        // Soft sky reflection band across upper-right iris
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.18)';
+        // Soft iridescent cyan-sky reflection band across upper-right iris
+        ctx.fillStyle = 'rgba(180, 242, 255, 0.25)';
         ctx.beginPath();
-        ctx.ellipse(ix + 5, iy - 13, 14, 5.5, 0.25, 0, Math.PI * 2);
+        ctx.ellipse(ix + 5, iy - 13, 14.5, 5.5, 0.25, 0, Math.PI * 2);
         ctx.fill();
 
         // Primary Upper-Left Anime Specular Catchlight (crisp studio oval)
         ctx.fillStyle = '#ffffff';
         ctx.beginPath();
         ctx.ellipse(ix - 11.5, iy - 11.5, 10, 7.8, -0.35, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Four-point starlight diamond twinkle on the pupil edge
+        const sx = ix + 9.5;
+        const sy = iy - 7.5;
+        const sr = 4.2;
+        ctx.beginPath();
+        ctx.moveTo(sx, sy - sr);
+        ctx.quadraticCurveTo(sx, sy, sx + sr, sy);
+        ctx.quadraticCurveTo(sx, sy, sx, sy + sr);
+        ctx.quadraticCurveTo(sx, sy, sx - sr, sy);
+        ctx.quadraticCurveTo(sx, sy, sx, sy - sr);
+        ctx.closePath();
         ctx.fill();
 
         // Overlapping warm secondary bubble catchlight
@@ -1268,7 +1281,13 @@ export class BmoFaceController {
       ctx.fill();
     }
 
-    // 8. Chin / Mentalis Under-Lip Shadow Crease
+    // 8. Soft Under-Lip Ambient Drop Shadow + Chin Crease
+    const underLipY = openH < 3.5 && m.lipBite < 0.2 ? 15 : openH * 0.68 + 12;
+    ctx.fillStyle = 'rgba(184, 96, 74, 0.28)';
+    ctx.beginPath();
+    ctx.ellipse(0, underLipY, halfW * 0.42, 4.5, 0, 0, Math.PI * 2);
+    ctx.fill();
+
     ctx.strokeStyle = 'rgba(176, 94, 72, 0.46)';
     ctx.lineWidth = 2.4;
     ctx.lineCap = 'round';
