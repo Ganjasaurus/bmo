@@ -1346,6 +1346,24 @@ export class BmoFaceController {
     ctx.closePath();
     ctx.fill();
 
+    // 4. Signature BMO Gold D-Pad Hair Clip on Left Side Lock
+    ctx.save();
+    ctx.translate(w * 0.255, h * 0.285);
+    ctx.rotate(-0.26);
+    ctx.fillStyle = '#ffd166';
+    ctx.strokeStyle = '#4a2e0b';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.roundRect(-13, -4.5, 26, 9, 3);
+    ctx.roundRect(-4.5, -13, 9, 26, 3);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = '#fff5cc';
+    ctx.beginPath();
+    ctx.arc(-2, -2, 2.2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+
     ctx.restore();
   }
 }

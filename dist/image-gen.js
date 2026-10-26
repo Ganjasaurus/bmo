@@ -8,6 +8,14 @@ export const IMAGE_STYLES = [
   { id: 'watercolor', label: 'Storybook Ink' },
 ];
 
+export const IMAGE_PRESETS = [
+  { label: 'BMO Forest', prompt: 'BMO in a glowing emerald forest at sunset', styleId: 'anime' },
+  { label: 'Cyber City', prompt: 'Neon cyberpunk city skyline at night with rain', styleId: 'cyberpunk' },
+  { label: 'Sakura Shrine', prompt: 'Blossoming sakura cherry tree by a mystical moonlit lake', styleId: 'ghibli' },
+  { label: 'Spirit Cat', prompt: 'Magical anime spirit cat under starry galaxy sky', styleId: 'anime' },
+  { label: 'Sky Dragon', prompt: 'Golden dragon soaring across sunset clouds', styleId: 'anime' },
+];
+
 function hashSeed(str) {
   let h = 2166136261 >>> 0;
   const s = String(str || 'bmo');
@@ -42,6 +50,15 @@ export function parsePromptScene(promptText, styleId = 'anime', seed = null) {
   const actualSeed = seed != null ? Number(seed) : hashSeed(`${lower}:${styleId}:${Date.now() % 997}`);
   const rng = createRng(actualSeed);
 
+  let resolvedStyle = styleId;
+  if (styleId === 'auto') {
+    if (/\b(cyber|neon|synth|future|laser)\b/.test(lower)) resolvedStyle = 'cyberpunk';
+    else if (/\b(pixel|retro|8bit|16bit|arcade)\b/.test(lower)) resolvedStyle = 'pixel';
+    else if (/\b(meadow|ghibli|forest|spring)\b/.test(lower)) resolvedStyle = 'ghibli';
+    else if (/\b(watercolor|ink|storybook|sketch)\b/.test(lower)) resolvedStyle = 'watercolor';
+    else resolvedStyle = 'anime';
+  }
+
   // Determine time of day / palette
   let palette = {
     skyTop: '#162347',
@@ -55,7 +72,19 @@ export function parsePromptScene(promptText, styleId = 'anime', seed = null) {
     glow: 'rgba(255, 200, 145, 0.45)',
   };
 
-  if (/\b(night|space|galaxy|star|moon|midnight|cosmic|nebula)\b/.test(lower)) {
+  if (/\b(cyber|neon|synth|laser)\b/.test(lower) || resolvedStyle === 'cyberpunk') {
+    palette = {
+      skyTop: '#090418',
+      skyMid: '#280b45',
+      skyBot: '#c72483',
+      sunColor: '#ff3898',
+      farHill: '#1d0b36',
+      midHill: '#120726',
+      nearGround: '#080314',
+      accent: '#00f6ff',
+      glow: 'rgba(0, 246, 255, 0.48)',
+    };
+  } else if (/\b(night|space|galaxy|star|moon|midnight|cosmic|nebula)\b/.test(lower)) {
     palette = {
       skyTop: '#070b1c',
       skyMid: '#181e46',
@@ -79,7 +108,7 @@ export function parsePromptScene(promptText, styleId = 'anime', seed = null) {
       accent: '#ffcf6b',
       glow: 'rgba(255, 160, 90, 0.5)',
     };
-  } else if (/\b(forest|meadow|nature|tree|garden|spring|ghibli|emerald|frog)\b/.test(lower) || styleId === 'ghibli') {
+  } else if (/\b(forest|meadow|nature|tree|garden|spring|ghibli|emerald|frog)\b/.test(lower) || resolvedStyle === 'ghibli') {
     palette = {
       skyTop: '#3a88d4',
       skyMid: '#7bc6ef',
@@ -90,18 +119,6 @@ export function parsePromptScene(promptText, styleId = 'anime', seed = null) {
       nearGround: '#1a4f43',
       accent: '#a8ff8e',
       glow: 'rgba(210, 255, 190, 0.45)',
-    };
-  } else if (/\b(cyber|neon|city|synth|robot|future|laser)\b/.test(lower) || styleId === 'cyberpunk') {
-    palette = {
-      skyTop: '#090418',
-      skyMid: '#280b45',
-      skyBot: '#c72483',
-      sunColor: '#ff3898',
-      farHill: '#1d0b36',
-      midHill: '#120726',
-      nearGround: '#080314',
-      accent: '#00f6ff',
-      glow: 'rgba(0, 246, 255, 0.48)',
     };
   } else if (/\b(ocean|sea|water|beach|island|whale|fish)\b/.test(lower)) {
     palette = {
@@ -119,22 +136,31 @@ export function parsePromptScene(promptText, styleId = 'anime', seed = null) {
 
   // Detect primary focal subject
   let subject = 'character';
-  if (/\b(cat|kitten|neko|fox|dog|puppy|bunny|rabbit|pet)\b/.test(lower)) subject = 'cat';
-  else if (/\b(robot|bmo|mecha|android|bot|console)\b/.test(lower)) subject = 'bmo';
-  else if (/\b(castle|tower|temple|shrine|house|village|city)\b/.test(lower)) subject = 'castle';
-  else if (/\b(dragon|monster|phoenix|bird)\b/.test(lower)) subject = 'dragon';
+  if (/\b(cat|kitten|neko|fox|kitsune|dog|puppy|bunny|rabbit|pet|wolf)\b/.test(lower)) subject = 'cat';
+  else if (/\b(robot|bmo|mecha|android|bot|console|gameboy)\b/.test(lower)) subject = 'bmo';
+  else if (/\b(castle|tower|temple|shrine|house|village|city|skyline)\b/.test(lower)) subject = 'castle';
+  else if (/\b(dragon|monster|phoenix|bird|wyvern)\b/.test(lower)) subject = 'dragon';
   else if (/\b(tree|flower|rose|sakura|cherry|blossom|forest)\b/.test(lower)) subject = 'sakura';
-  else if (/\b(ship|boat|rocket|spaceship|ufo)\b/.test(lower)) subject = 'spaceship';
+  else if (/\b(ship|boat|rocket|spaceship|ufo|starship)\b/.test(lower)) subject = 'spaceship';
 
-  const hasWater = /\b(ocean|sea|lake|river|water|beach|reflection)\b/.test(lower) || rng() < 0.45;
-  const hasStars = /\b(night|space|star|galaxy|moon|nebula|magic)\b/.test(lower) || rng() < 0.6;
+  // Detect weather / atmospheric effect
+  let weather = 'fireflies';
+  if (/\b(rain|storm|drizzle|cyber|neon)\b/.test(lower)) weather = 'rain';
+  else if (/\b(snow|winter|ice|frost|blizzard)\b/.test(lower)) weather = 'snow';
+  else if (/\b(sakura|cherry|blossom|petal|spring)\b/.test(lower)) weather = 'petals';
+  else if (/\b(meteor|comet|shooting\s+star|galaxy|space)\b/.test(lower)) weather = 'meteors';
+
+  const hasWater = /\b(ocean|sea|lake|river|water|beach|reflection|rain)\b/.test(lower) || rng() < 0.48;
+  const hasStars = /\b(night|space|star|galaxy|moon|nebula|magic|cyber)\b/.test(lower) || rng() < 0.62;
 
   return {
     prompt: promptText,
-    styleId,
+    styleId: resolvedStyle,
+    style: resolvedStyle,
     seed: actualSeed,
     palette,
     subject,
+    weather,
     hasWater,
     hasStars,
   };
@@ -147,127 +173,209 @@ function drawFocalSubject(ctx, w, h, scene, rng) {
 
   ctx.save();
   if (subject === 'bmo') {
-    // Stylized Anime BMO Companion in the scene
+    // Stylized Anime BMO Companion with Glowing Screen & Floating Pixel Hearts
     ctx.translate(cx, cy);
     ctx.fillStyle = '#53bfa9';
     ctx.strokeStyle = '#113832';
     ctx.lineWidth = 4;
     ctx.beginPath();
-    ctx.roundRect(-62, -75, 124, 140, 20);
+    ctx.roundRect(-64, -76, 128, 142, 22);
     ctx.fill();
     ctx.stroke();
 
-    // Screen
-    ctx.fillStyle = '#b4f5e4';
+    // Glowing Mint Screen
+    const scrGrad = ctx.createLinearGradient(0, -60, 0, 12);
+    scrGrad.addColorStop(0, '#c8fff0');
+    scrGrad.addColorStop(1, '#94ebd6');
+    ctx.fillStyle = scrGrad;
     ctx.beginPath();
-    ctx.roundRect(-46, -58, 92, 68, 12);
+    ctx.roundRect(-48, -58, 96, 70, 13);
     ctx.fill();
     ctx.stroke();
 
-    // Cute Anime Eyes & Smile on BMO
+    // Cute Anime Eyes, Blush & Smile on BMO
+    ctx.fillStyle = 'rgba(255, 118, 136, 0.55)';
+    ctx.beginPath();
+    ctx.ellipse(-30, -18, 7, 4, 0, 0, Math.PI * 2);
+    ctx.ellipse(30, -18, 7, 4, 0, 0, Math.PI * 2);
+    ctx.fill();
+
     ctx.fillStyle = '#122926';
     ctx.beginPath();
-    ctx.arc(-20, -30, 6.5, 0, Math.PI * 2);
-    ctx.arc(20, -30, 6.5, 0, Math.PI * 2);
+    ctx.arc(-20, -29, 7, 0, Math.PI * 2);
+    ctx.arc(20, -29, 7, 0, Math.PI * 2);
     ctx.fill();
     ctx.fillStyle = '#ffffff';
     ctx.beginPath();
-    ctx.arc(-22, -32, 2.3, 0, Math.PI * 2);
-    ctx.arc(18, -32, 2.3, 0, Math.PI * 2);
+    ctx.arc(-22.5, -31.5, 2.6, 0, Math.PI * 2);
+    ctx.arc(17.5, -31.5, 2.6, 0, Math.PI * 2);
     ctx.fill();
 
     ctx.strokeStyle = '#122926';
     ctx.lineWidth = 3;
     ctx.beginPath();
-    ctx.arc(0, -22, 11, 0.15 * Math.PI, 0.85 * Math.PI);
+    ctx.arc(0, -21, 11, 0.15 * Math.PI, 0.85 * Math.PI);
     ctx.stroke();
 
-    // D-pad & Buttons
+    // D-pad & Arcade Buttons
     ctx.fillStyle = '#f2c14e';
-    ctx.fillRect(-34, 26, 22, 7);
-    ctx.fillRect(-26.5, 18.5, 7, 22);
+    ctx.fillRect(-35, 26, 22, 7);
+    ctx.fillRect(-27.5, 18.5, 7, 22);
     ctx.fillStyle = '#e84868';
     ctx.beginPath();
-    ctx.arc(24, 34, 8, 0, Math.PI * 2);
+    ctx.arc(25, 34, 8.5, 0, Math.PI * 2);
     ctx.fill();
     ctx.fillStyle = '#38d478';
     ctx.beginPath();
-    ctx.arc(6, 24, 6, 0, Math.PI * 2);
+    ctx.arc(6, 24, 6.5, 0, Math.PI * 2);
     ctx.fill();
   } else if (subject === 'cat') {
-    // Anime Spirit Cat Silhouette with Glowing Eyes & Tail
+    // Mystical Anime Spirit Cat / Kitsune Silhouette with Glowing Eyes & Twin Tails
     ctx.translate(cx, cy + 12);
-    ctx.fillStyle = '#14182b';
+    ctx.fillStyle = '#13172b';
     ctx.strokeStyle = palette.accent;
     ctx.lineWidth = 2.5;
 
-    // Body
     ctx.beginPath();
     ctx.ellipse(0, 22, 38, 46, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
 
-    // Head + Ears
     ctx.beginPath();
     ctx.arc(0, -30, 30, 0, Math.PI * 2);
     ctx.fill();
 
     ctx.beginPath();
     ctx.moveTo(-26, -42);
-    ctx.lineTo(-34, -76);
+    ctx.lineTo(-35, -78);
     ctx.lineTo(-8, -54);
     ctx.moveTo(26, -42);
-    ctx.lineTo(34, -76);
+    ctx.lineTo(35, -78);
     ctx.lineTo(8, -54);
     ctx.closePath();
     ctx.fill();
     ctx.stroke();
 
-    // Glowing Anime Cat Eyes
+    // Glowing Jewel Cat Eyes
     ctx.fillStyle = palette.accent;
     ctx.beginPath();
-    ctx.ellipse(-11, -30, 6, 4.5, 0.2, 0, Math.PI * 2);
-    ctx.ellipse(11, -30, 6, 4.5, -0.2, 0, Math.PI * 2);
+    ctx.ellipse(-11, -30, 6.5, 4.5, 0.2, 0, Math.PI * 2);
+    ctx.ellipse(11, -30, 6.5, 4.5, -0.2, 0, Math.PI * 2);
     ctx.fill();
 
-    // Curving Tail
-    ctx.strokeStyle = '#14182b';
+    // Curving Spirit Tail with Glowing Tip
+    ctx.strokeStyle = '#13172b';
     ctx.lineWidth = 12;
     ctx.lineCap = 'round';
     ctx.beginPath();
     ctx.moveTo(28, 48);
-    ctx.bezierCurveTo(75, 40, 82, -10, 56, -25);
+    ctx.bezierCurveTo(78, 40, 84, -12, 56, -28);
     ctx.stroke();
+
+    ctx.fillStyle = palette.accent;
+    ctx.beginPath();
+    ctx.arc(56, -28, 7, 0, Math.PI * 2);
+    ctx.fill();
+  } else if (subject === 'dragon') {
+    // Soaring Anime Sky Dragon Coiled Across the Moon/Sun
+    ctx.translate(cx, cy - 55);
+    ctx.strokeStyle = '#16182e';
+    ctx.lineWidth = 18;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(-110, 65);
+    ctx.bezierCurveTo(-55, -45, 35, 55, 95, -35);
+    ctx.stroke();
+
+    // Luminous dorsal scale ridge
+    ctx.strokeStyle = palette.accent;
+    ctx.lineWidth = 4;
+    ctx.setLineDash([8, 10]);
+    ctx.beginPath();
+    ctx.moveTo(-105, 58);
+    ctx.bezierCurveTo(-55, -52, 35, 48, 95, -42);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Dragon Head & Antlers
+    ctx.fillStyle = '#16182e';
+    ctx.beginPath();
+    ctx.ellipse(100, -38, 22, 13, -0.3, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = palette.sunColor;
+    ctx.beginPath();
+    ctx.arc(105, -41, 3.8, 0, Math.PI * 2);
+    ctx.fill();
+  } else if (subject === 'spaceship') {
+    // Sleek Anime Starcruiser with Glowing Thruster Plume
+    ctx.translate(cx, cy - 35);
+    ctx.rotate(-0.22);
+
+    // Thruster flame
+    const flameGrad = ctx.createLinearGradient(-95, 0, -25, 0);
+    flameGrad.addColorStop(0, 'rgba(0, 246, 255, 0)');
+    flameGrad.addColorStop(0.6, palette.accent);
+    flameGrad.addColorStop(1, '#ffffff');
+    ctx.fillStyle = flameGrad;
+    ctx.beginPath();
+    ctx.moveTo(-25, -10);
+    ctx.lineTo(-105, 0);
+    ctx.lineTo(-25, 10);
+    ctx.closePath();
+    ctx.fill();
+
+    // Hull & Swept Wings
+    ctx.fillStyle = '#1b243b';
+    ctx.strokeStyle = palette.accent;
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.moveTo(65, 0);
+    ctx.lineTo(-28, -34);
+    ctx.lineTo(-14, -8);
+    ctx.lineTo(-32, 0);
+    ctx.lineTo(-14, 8);
+    ctx.lineTo(-28, 34);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    // Canopy
+    ctx.fillStyle = palette.sunColor;
+    ctx.beginPath();
+    ctx.ellipse(16, 0, 16, 6, 0, 0, Math.PI * 2);
+    ctx.fill();
   } else if (subject === 'castle') {
-    // Floating Miyazaki / Fantasy Spire Castle
+    // Floating Miyazaki / Cyberpunk Spire Skyline
     ctx.translate(cx, cy - 18);
-    ctx.fillStyle = '#181d38';
-    ctx.strokeStyle = palette.sunColor;
+    ctx.fillStyle = '#151933';
+    ctx.strokeStyle = palette.accent;
     ctx.lineWidth = 2;
     const towers = [
-      { x: -55, w: 26, h: 90 },
-      { x: -24, w: 34, h: 125 },
-      { x: 14, w: 28, h: 105 },
-      { x: -8, w: 22, h: 155 },
+      { x: -72, w: 28, h: 95 },
+      { x: -38, w: 34, h: 135 },
+      { x: 2, w: 30, h: 165 },
+      { x: 38, w: 32, h: 115 },
     ];
     for (const t of towers) {
       ctx.fillRect(t.x, 45 - t.h, t.w, t.h);
+      ctx.strokeRect(t.x, 45 - t.h, t.w, t.h);
       ctx.beginPath();
-      ctx.moveTo(t.x - 5, 45 - t.h);
-      ctx.lineTo(t.x + t.w / 2, 45 - t.h - 32);
-      ctx.lineTo(t.x + t.w + 5, 45 - t.h);
+      ctx.moveTo(t.x - 4, 45 - t.h);
+      ctx.lineTo(t.x + t.w / 2, 45 - t.h - 30);
+      ctx.lineTo(t.x + t.w + 4, 45 - t.h);
       ctx.closePath();
       ctx.fill();
     }
-    // Warm lit windows
-    ctx.fillStyle = '#ffe28a';
-    for (let i = 0; i < 9; i++) {
-      const wx = -42 + (i % 3) * 32;
-      const wy = -40 + Math.floor(i / 3) * 24;
-      ctx.fillRect(wx, wy, 6, 10);
+    // Warm lit windows & neon signs
+    ctx.fillStyle = '#ffe58f';
+    for (const t of towers) {
+      for (let wy = 45 - t.h + 14; wy < 36; wy += 18) {
+        ctx.fillRect(t.x + 6, wy, 5, 8);
+        ctx.fillRect(t.x + t.w - 11, wy, 5, 8);
+      }
     }
   } else if (subject === 'sakura') {
-    // Blossoming Anime Sakura Tree on Hilltop
+    // Blossoming Anime Sakura Tree + Torii Gate Hint
     ctx.translate(cx, cy + 35);
     ctx.strokeStyle = '#2d1826';
     ctx.lineWidth = 16;
@@ -279,17 +387,16 @@ function drawFocalSubject(ctx, w, h, scene, rng) {
     ctx.quadraticCurveTo(22, -38, 48, -64);
     ctx.stroke();
 
-    // Lush pink blossom clouds
     const puffs = [
-      { x: -45, y: -72, r: 42 },
-      { x: 0, y: -92, r: 52 },
-      { x: 48, y: -74, r: 44 },
-      { x: -18, y: -56, r: 38 },
-      { x: 26, y: -54, r: 38 },
+      { x: -45, y: -72, r: 44 },
+      { x: 0, y: -94, r: 54 },
+      { x: 48, y: -74, r: 46 },
+      { x: -18, y: -56, r: 40 },
+      { x: 26, y: -54, r: 40 },
     ];
     for (const p of puffs) {
       const g = ctx.createRadialGradient(p.x, p.y - 8, 4, p.x, p.y, p.r);
-      g.addColorStop(0, '#ffdbe8');
+      g.addColorStop(0, '#ffe3ee');
       g.addColorStop(0.65, '#ff8eb8');
       g.addColorStop(1, 'rgba(230, 85, 140, 0)');
       ctx.fillStyle = g;
@@ -298,30 +405,85 @@ function drawFocalSubject(ctx, w, h, scene, rng) {
       ctx.fill();
     }
   } else {
-    // Heroic Anime Traveler Silhouette Looking at the Horizon
+    // Heroic Anime Traveler Silhouette with Wind-Swept Scarf & Rim Light
     ctx.translate(cx, cy + 20);
-    ctx.fillStyle = '#121629';
-    // Flowing scarf / cloak in the wind
     ctx.beginPath();
     ctx.moveTo(-14, -22);
-    ctx.quadraticCurveTo(-68, -10 + rng() * 12, -92, 16);
-    ctx.quadraticCurveTo(-48, 22, -10, 4);
+    ctx.quadraticCurveTo(-68, -10 + rng() * 12, -96, 18);
+    ctx.quadraticCurveTo(-48, 24, -10, 4);
     ctx.closePath();
     ctx.fillStyle = palette.accent;
     ctx.fill();
 
-    // Head & Torso silhouette
     ctx.fillStyle = '#121629';
+    ctx.strokeStyle = palette.sunColor;
+    ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.arc(0, -44, 20, 0, Math.PI * 2);
     ctx.fill();
+    ctx.stroke();
+
     ctx.beginPath();
-    ctx.moveTo(-22, 52);
+    ctx.moveTo(-23, 52);
     ctx.lineTo(-16, -22);
     ctx.lineTo(16, -22);
-    ctx.lineTo(22, 52);
+    ctx.lineTo(23, 52);
     ctx.closePath();
     ctx.fill();
+  }
+  ctx.restore();
+}
+
+function drawWeatherEffects(ctx, w, h, scene, rng) {
+  const { weather, palette } = scene;
+  ctx.save();
+  if (weather === 'rain') {
+    ctx.strokeStyle = palette.accent;
+    ctx.lineWidth = 1.4;
+    ctx.globalAlpha = 0.42;
+    for (let i = 0; i < 55; i++) {
+      const rx = rng() * w;
+      const ry = rng() * h;
+      const len = 14 + rng() * 18;
+      ctx.beginPath();
+      ctx.moveTo(rx, ry);
+      ctx.lineTo(rx - 5, ry + len);
+      ctx.stroke();
+    }
+  } else if (weather === 'petals') {
+    for (let i = 0; i < 36; i++) {
+      const px = rng() * w;
+      const py = rng() * h;
+      const pr = 3 + rng() * 4.5;
+      ctx.fillStyle = i % 2 === 0 ? '#ffd1e3' : '#ff94b8';
+      ctx.globalAlpha = 0.65 + rng() * 0.3;
+      ctx.beginPath();
+      ctx.ellipse(px, py, pr, pr * 0.55, rng() * Math.PI, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  } else if (weather === 'meteors') {
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 2.2;
+    for (let i = 0; i < 4; i++) {
+      const mx = w * (0.2 + rng() * 0.65);
+      const my = h * (0.08 + rng() * 0.28);
+      ctx.beginPath();
+      ctx.moveTo(mx, my);
+      ctx.lineTo(mx - 48, my + 24);
+      ctx.stroke();
+    }
+  } else {
+    // Glowing fireflies & bokeh
+    for (let p = 0; p < 30; p++) {
+      const px = rng() * w;
+      const py = h * 0.22 + rng() * h * 0.74;
+      const pr = 2 + rng() * 4.8;
+      ctx.fillStyle = p % 2 === 0 ? palette.accent : palette.sunColor;
+      ctx.globalAlpha = 0.35 + rng() * 0.55;
+      ctx.beginPath();
+      ctx.arc(px, py, pr, 0, Math.PI * 2);
+      ctx.fill();
+    }
   }
   ctx.restore();
 }
@@ -343,7 +505,7 @@ export async function generateLocalArtwork(canvas, promptText, { styleId = 'anim
 
   const pauseStep = async (step, label) => {
     onStep?.({ step, totalSteps, label, scene });
-    await new Promise((r) => setTimeout(r, 55));
+    await new Promise((r) => setTimeout(r, 48));
   };
 
   // Step 1: Latent Sky & Atmospheric Gradient
@@ -358,10 +520,10 @@ export async function generateLocalArtwork(canvas, promptText, { styleId = 'anim
   // Step 2: Celestial Sun / Moon & Starfield
   if (scene.hasStars) {
     ctx.save();
-    for (let i = 0; i < 65; i++) {
+    for (let i = 0; i < 70; i++) {
       const sx = rng() * w;
       const sy = rng() * h * 0.55;
-      const sr = 0.7 + rng() * 2.1;
+      const sr = 0.7 + rng() * 2.2;
       ctx.fillStyle = `rgba(255, 255, 255, ${0.25 + rng() * 0.7})`;
       ctx.beginPath();
       ctx.arc(sx, sy, sr, 0, Math.PI * 2);
@@ -372,7 +534,7 @@ export async function generateLocalArtwork(canvas, promptText, { styleId = 'anim
 
   const sunX = w * (0.32 + rng() * 0.36);
   const sunY = h * (0.24 + rng() * 0.16);
-  const sunR = 46 + rng() * 28;
+  const sunR = 48 + rng() * 28;
   const sunGlow = ctx.createRadialGradient(sunX, sunY, sunR * 0.2, sunX, sunY, sunR * 2.6);
   sunGlow.addColorStop(0, palette.sunColor);
   sunGlow.addColorStop(0.45, palette.glow);
@@ -435,7 +597,6 @@ export async function generateLocalArtwork(canvas, promptText, { styleId = 'anim
     ctx.fillStyle = wGrad;
     ctx.fillRect(0, waterTop, w, h - waterTop);
 
-    // Sun shimmer ripples on water
     ctx.fillStyle = palette.sunColor;
     for (let r = 0; r < 22; r++) {
       const ry = waterTop + 8 + (r / 22) * (h - waterTop - 14);
@@ -452,23 +613,12 @@ export async function generateLocalArtwork(canvas, promptText, { styleId = 'anim
   drawFocalSubject(ctx, w, h, scene, rng);
   await pauseStep(6, 'Detailing focal subject…');
 
-  // Step 7: Glowing Fireflies / Bokeh / Sakura Petals
-  ctx.save();
-  for (let p = 0; p < 28; p++) {
-    const px = rng() * w;
-    const py = h * 0.25 + rng() * h * 0.72;
-    const pr = 2 + rng() * 4.5;
-    ctx.fillStyle = p % 2 === 0 ? palette.accent : palette.sunColor;
-    ctx.globalAlpha = 0.35 + rng() * 0.55;
-    ctx.beginPath();
-    ctx.arc(px, py, pr, 0, Math.PI * 2);
-    ctx.fill();
-  }
-  ctx.restore();
-  await pauseStep(7, 'Adding rim light & bokeh particles…');
+  // Step 7: Weather & Atmospheric Particles (Rain, Sakura Petals, Meteors, or Fireflies)
+  drawWeatherEffects(ctx, w, h, scene, rng);
+  await pauseStep(7, 'Adding weather & rim-light particles…');
 
   // Step 8: Style Post-Processing (16-Bit Pixelation or Storybook Ink Frame)
-  if (styleId === 'pixel') {
+  if (scene.styleId === 'pixel') {
     const scale = 6;
     const sw = Math.floor(w / scale);
     const sh = Math.floor(h / scale);
@@ -481,7 +631,7 @@ export async function generateLocalArtwork(canvas, promptText, { styleId = 'anim
     ctx.imageSmoothingEnabled = false;
     ctx.drawImage(off, 0, 0, sw, sh, 0, 0, w, h);
     ctx.imageSmoothingEnabled = true;
-  } else if (styleId === 'watercolor') {
+  } else if (scene.styleId === 'watercolor') {
     ctx.strokeStyle = 'rgba(255, 248, 235, 0.85)';
     ctx.lineWidth = 14;
     ctx.strokeRect(7, 7, w - 14, h - 14);

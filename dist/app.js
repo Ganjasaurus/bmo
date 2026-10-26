@@ -1,4 +1,4 @@
-import { ai, subscribeAI, autoBootAI, complete } from './ai.js?v=4';
+import { ai, subscribeAI, autoBootAI, complete } from './ai.js?v=5';
 import {
   speech,
   subscribeSpeech,
@@ -8,10 +8,10 @@ import {
   stopSpeech,
   unlockAudio,
   flushPendingSpeech,
-} from './speech.js?v=4';
-import { BmoFaceController } from './face.js?v=4';
-import { FACE_NAMES } from './visemes.js?v=4';
-import { ConversationMemory, BMO_PERSONALITY, MAX_HISTORY } from './memory.js?v=4';
+} from './speech.js?v=5';
+import { BmoFaceController } from './face.js?v=5';
+import { FACE_NAMES } from './visemes.js?v=5';
+import { ConversationMemory, BMO_PERSONALITY, MAX_HISTORY } from './memory.js?v=5';
 import {
   mic,
   subscribeMic,
@@ -23,12 +23,14 @@ import {
   stopListening,
   toggleListening,
   setPausedForSpeech,
-} from './listening.js?v=4';
+} from './listening.js?v=5';
 import {
+  IMAGE_PRESETS,
   detectImageRequest,
   generateLocalArtwork,
+  loadSavedGallery,
   saveToGallery,
-} from './image-gen.js?v=4';
+} from './image-gen.js?v=5';
 
 const memory = new ConversationMemory(BMO_PERSONALITY, MAX_HISTORY, { persist: true });
 let face = null;
@@ -194,10 +196,40 @@ function refreshMicUI() {
   }
 }
 
+export function renderGalleryStrip() {
+  if (!els.imageGalleryStrip) return;
+  const items = loadSavedGallery();
+  if (!items.length) {
+    els.imageGalleryStrip.hidden = true;
+    els.imageGalleryStrip.innerHTML = '';
+    return;
+  }
+  els.imageGalleryStrip.hidden = false;
+  els.imageGalleryStrip.innerHTML = '';
+  for (const item of items) {
+    if (!item.dataUrl) continue;
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'bmo-gallery-thumb';
+    btn.title = `${item.prompt} (${item.styleId})`;
+    const img = document.createElement('img');
+    img.src = item.dataUrl;
+    img.alt = item.prompt || 'BMO artwork';
+    btn.appendChild(img);
+    btn.addEventListener('click', () => {
+      if (els.imagePromptInput) els.imagePromptInput.value = item.prompt || '';
+      if (els.imageStyleSelect && item.styleId) els.imageStyleSelect.value = item.styleId;
+      void runImageGeneration(item.prompt, item.styleId);
+    });
+    els.imageGalleryStrip.appendChild(btn);
+  }
+}
+
 export async function runImageGeneration(promptText, styleId) {
   const chosenStyle = styleId || els.imageStyleSelect?.value || 'anime';
   const cleanPrompt = String(promptText || els.imagePromptInput?.value || 'BMO in an emerald forest at sunset').trim();
   if (els.imagePromptInput) els.imagePromptInput.value = cleanPrompt;
+  if (els.imageStyleSelect && styleId) els.imageStyleSelect.value = styleId;
   toggleImageStudio(true, { skipAutoGenerate: true });
   imageGenerating = true;
 
@@ -214,6 +246,7 @@ export async function runImageGeneration(promptText, styleId) {
     if (result) {
       lastGeneratedImage = result;
       saveToGallery(result);
+      renderGalleryStrip();
       if (els.imgStepStatus) {
         els.imgStepStatus.textContent = `Painted (${chosenStyle})`;
       }
@@ -375,9 +408,28 @@ async function initApp() {
   els.imageStyleSelect = document.getElementById('image-style-select');
   els.imgDownloadBtn = document.getElementById('btn-img-download');
   els.imgStepStatus = document.getElementById('img-step-status');
+  els.imagePresetChips = document.getElementById('image-preset-chips');
+  els.imageGalleryStrip = document.getElementById('image-gallery-strip');
 
-  // Render saved conversation history immediately (<2ms)
+  // Render saved conversation history & image gallery immediately (<2ms)
   renderHistoryStrip();
+  renderGalleryStrip();
+
+  if (els.imagePresetChips) {
+    els.imagePresetChips.innerHTML = '';
+    for (const preset of IMAGE_PRESETS) {
+      const chip = document.createElement('button');
+      chip.type = 'button';
+      chip.className = 'bmo-preset-chip';
+      chip.textContent = preset.label;
+      chip.addEventListener('click', () => {
+        if (els.imagePromptInput) els.imagePromptInput.value = preset.prompt;
+        if (els.imageStyleSelect) els.imageStyleSelect.value = preset.styleId;
+        void runImageGeneration(preset.prompt, preset.styleId);
+      });
+      els.imagePresetChips.appendChild(chip);
+    }
+  }
 
   face = new BmoFaceController(els.canvas);
   await face.loadSprites('./assets/face');
