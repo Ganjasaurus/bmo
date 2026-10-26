@@ -1,4 +1,4 @@
-import { ai, subscribeAI, autoBootAI, complete } from './ai.js?v=3';
+import { ai, subscribeAI, autoBootAI, complete } from './ai.js?v=4';
 import {
   speech,
   subscribeSpeech,
@@ -8,9 +8,10 @@ import {
   stopSpeech,
   unlockAudio,
   flushPendingSpeech,
-} from './speech.js?v=3';
-import { BmoFaceController } from './face.js?v=3';
-import { ConversationMemory, BMO_PERSONALITY, MAX_HISTORY } from './memory.js?v=3';
+} from './speech.js?v=4';
+import { BmoFaceController } from './face.js?v=4';
+import { FACE_NAMES } from './visemes.js?v=4';
+import { ConversationMemory, BMO_PERSONALITY, MAX_HISTORY } from './memory.js?v=4';
 import {
   mic,
   subscribeMic,
@@ -22,12 +23,12 @@ import {
   stopListening,
   toggleListening,
   setPausedForSpeech,
-} from './listening.js?v=3';
+} from './listening.js?v=4';
 import {
   detectImageRequest,
   generateLocalArtwork,
   saveToGallery,
-} from './image-gen.js?v=3';
+} from './image-gen.js?v=4';
 
 const memory = new ConversationMemory(BMO_PERSONALITY, MAX_HISTORY, { persist: true });
 let face = null;
@@ -351,6 +352,7 @@ async function initApp() {
   els.canvas = document.getElementById('bmo-face-canvas');
   els.faceFrame = document.getElementById('bmo-face-frame');
   els.visemeBadge = document.getElementById('bmo-viseme-badge');
+  els.visemeStrip = document.getElementById('bmo-viseme-strip');
   els.status = document.getElementById('bmo-status');
   els.statusDot = document.getElementById('bmo-status-dot');
   els.progressWrap = document.getElementById('bmo-progress-wrap');
@@ -414,6 +416,35 @@ async function initApp() {
   };
   window.addEventListener('pointerdown', unlock, { passive: true });
   window.addEventListener('keydown', unlock, { passive: true });
+
+  // Populate 12-viseme interactive audition strip
+  if (els.visemeStrip) {
+    els.visemeStrip.innerHTML = '';
+    for (const vName of FACE_NAMES) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'bmo-viseme-pill';
+      btn.textContent = vName;
+      btn.dataset.viseme = vName;
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        face.setFace(vName);
+        face.snapToTargetViseme();
+        for (const child of els.visemeStrip.children) {
+          child.dataset.active = String(child.dataset.viseme === vName);
+        }
+      });
+      els.visemeStrip.appendChild(btn);
+    }
+  }
+
+  els.visemeBadge?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (!els.visemeStrip) return;
+    const nextOpen = els.visemeStrip.hidden;
+    els.visemeStrip.hidden = !nextOpen;
+    els.visemeBadge.setAttribute('aria-expanded', String(nextOpen));
+  });
 
   els.faceFrame?.addEventListener('click', () => {
     void unlockAudio();
