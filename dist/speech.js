@@ -1,4 +1,4 @@
-import { visemeAtTime, buildFallbackTimeline } from './visemes.js?v=1';
+import { visemeAtTime, buildFallbackTimeline } from './visemes.js?v=2';
 
 export const speech = {
   status: 'idle', // 'idle' | 'speaking'
@@ -9,6 +9,7 @@ export const speech = {
   currentSentence: '',
   lengthScale: 1.0,
   audioUnlocked: false,
+  autoplayBlocked: false,
   lastTimelineCount: 0,
   lastAudioDuration: 0,
 };
@@ -48,6 +49,7 @@ function emitViseme(name) {
 
 let audioContext = null;
 let activeSource = null;
+let activeAudioEl = null;
 let activeTimer = null;
 let activeRaf = null;
 let piperWorker = null;
@@ -56,43 +58,119 @@ const pendingSynth = new Map();
 let initPromise = null;
 let playbackToken = 0;
 let playbackQueue = Promise.resolve();
+let pendingBlockedSpeech = null;
 
 export function getAudioContext() {
   const Ctor = globalThis.AudioContext || globalThis.webkitAudioContext;
   if (!Ctor) return null;
   if (!audioContext) {
     audioContext = new Ctor();
+    audioContext.addEventListener?.('statechange', () => {
+      if (audioContext.state === 'running') {
+        update({ audioUnlocked: true, autoplayBlocked: false });
+      }
+    });
   }
   return audioContext;
 }
 
-export function unlockAudio() {
+/**
+ * Attempts to unlock WebAudio without ever hanging if called outside a user gesture.
+ */
+export async function unlockAudio() {
   const ctx = getAudioContext();
-  if (!ctx) return Promise.resolve(false);
-  try {
-    const resumed = ctx.resume();
-    const empty = ctx.createBuffer(1, 1, ctx.sampleRate || 16000);
-    const node = ctx.createBufferSource();
-    node.buffer = empty;
-    node.connect(ctx.destination);
-    node.start();
-    node.onended = () => node.disconnect();
-    return Promise.resolve(resumed).then(
-      () => {
-        const ok = ctx.state === 'running';
-        if (ok) update({ audioUnlocked: true });
-        return ok;
-      },
-      () => false
-    );
-  } catch {
-    return Promise.resolve(false);
+  if (!ctx) return false;
+  if (ctx.state === 'running') {
+    if (!speech.audioUnlocked) update({ audioUnlocked: true, autoplayBlocked: false });
+    return true;
   }
+  try {
+    const resumePromise = ctx.resume();
+    try {
+      const empty = ctx.createBuffer(1, 1, ctx.sampleRate || 16000);
+      const node = ctx.createBufferSource();
+      node.buffer = empty;
+      node.connect(ctx.destination);
+      node.start(0);
+      node.onended = () => node.disconnect();
+    } catch {}
+
+    await Promise.race([
+      Promise.resolve(resumePromise).catch(() => {}),
+      new Promise((r) => setTimeout(r, 120)),
+    ]);
+
+    const ok = ctx.state === 'running';
+    if (ok) {
+      update({ audioUnlocked: true, autoplayBlocked: false });
+    }
+    return ok;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * If a greeting was blocked by browser autoplay policy before the user's first click,
+ * replay it immediately as soon as the user interacts with the page.
+ */
+export function flushPendingSpeech() {
+  void unlockAudio().then((ok) => {
+    if (ok && pendingBlockedSpeech && speech.status === 'idle') {
+      const item = pendingBlockedSpeech;
+      pendingBlockedSpeech = null;
+      update({ autoplayBlocked: false });
+      const token = playbackToken;
+      playbackQueue = playbackQueue
+        .then(() => playSynthesizedResult(item.synthResult, item.sentenceText, token))
+        .finally(() => {
+          if (token === playbackToken) {
+            emitViseme('Neutral');
+            update({ status: 'idle', currentSentence: '' });
+          }
+        });
+    }
+  });
+}
+
+function encodeWavBlob(pcmFloat32, sampleRate = 16000) {
+  const numSamples = pcmFloat32.length;
+  const buffer = new ArrayBuffer(44 + numSamples * 2);
+  const view = new DataView(buffer);
+
+  const writeStr = (offset, str) => {
+    for (let i = 0; i < str.length; i++) {
+      view.setUint8(offset + i, str.charCodeAt(i));
+    }
+  };
+
+  writeStr(0, 'RIFF');
+  view.setUint32(4, 36 + numSamples * 2, true);
+  writeStr(8, 'WAVE');
+  writeStr(12, 'fmt ');
+  view.setUint32(16, 16, true); // PCM chunk size
+  view.setUint16(20, 1, true); // PCM format
+  view.setUint16(22, 1, true); // mono
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * 2, true);
+  view.setUint16(32, 2, true);
+  view.setUint16(34, 16, true);
+  writeStr(36, 'data');
+  view.setUint32(40, numSamples * 2, true);
+
+  let offset = 44;
+  for (let i = 0; i < numSamples; i++) {
+    const s = Math.max(-1, Math.min(1, pcmFloat32[i]));
+    view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7fff, true);
+    offset += 2;
+  }
+
+  return new Blob([buffer], { type: 'audio/wav' });
 }
 
 function ensureWorker() {
   if (piperWorker) return piperWorker;
-  piperWorker = new Worker(new URL('./piper-worker.js?v=1', import.meta.url), { type: 'module' });
+  piperWorker = new Worker(new URL('./piper-worker.js?v=2', import.meta.url), { type: 'module' });
   piperWorker.onmessage = ({ data }) => {
     if (!data) return;
     if (data.type === 'status') {
@@ -160,7 +238,7 @@ export function initVoice() {
   return initPromise;
 }
 
-function synthesizePiper(text, lengthScale = speech.lengthScale) {
+export function synthesizePiper(text, lengthScale = speech.lengthScale) {
   const w = ensureWorker();
   return new Promise((resolve, reject) => {
     const id = ++workerReqId;
@@ -191,6 +269,7 @@ function stopActiveSync() {
 
 export function stopSpeech() {
   playbackToken++;
+  pendingBlockedSpeech = null;
   playbackQueue = Promise.resolve();
   stopActiveSync();
   if (activeSource) {
@@ -199,6 +278,13 @@ export function stopSpeech() {
       activeSource.disconnect();
     } catch {}
     activeSource = null;
+  }
+  if (activeAudioEl) {
+    try {
+      activeAudioEl.pause();
+      activeAudioEl.src = '';
+    } catch {}
+    activeAudioEl = null;
   }
   emitViseme('Neutral');
   update({ status: 'idle', currentSentence: '' });
@@ -227,6 +313,55 @@ function animateTimelineOnly(timeline, durationSec, token) {
   });
 }
 
+function playViaHtmlAudioElement(pcmFloat32, sampleRate, timeline, duration, token) {
+  return new Promise((resolve) => {
+    if (typeof Audio === 'undefined') {
+      resolve(false);
+      return;
+    }
+    const blob = encodeWavBlob(pcmFloat32, sampleRate);
+    const url = URL.createObjectURL(blob);
+    const audioEl = new Audio(url);
+    activeAudioEl = audioEl;
+    let finished = false;
+
+    const cleanup = (ok) => {
+      if (finished) return;
+      finished = true;
+      stopActiveSync();
+      if (activeAudioEl === audioEl) activeAudioEl = null;
+      URL.revokeObjectURL(url);
+      emitViseme('Neutral');
+      resolve(ok);
+    };
+
+    audioEl.onended = () => cleanup(true);
+    audioEl.onerror = () => cleanup(false);
+
+    activeTimer = setInterval(() => {
+      if (finished || token !== playbackToken) {
+        cleanup(false);
+        return;
+      }
+      const elapsed = audioEl.currentTime || 0;
+      if (elapsed >= duration + 0.08) {
+        cleanup(true);
+        return;
+      }
+      emitViseme(visemeAtTime(timeline, elapsed));
+    }, 12);
+
+    audioEl.play().then(
+      () => {
+        update({ audioUnlocked: true, autoplayBlocked: false });
+      },
+      () => {
+        cleanup(false);
+      }
+    );
+  });
+}
+
 async function playSynthesizedResult(synthResult, sentenceText, token) {
   if (token !== playbackToken) return;
   const { pcmFloat32, sampleRate = 16000, timeline = [], duration = 0 } = synthResult;
@@ -243,7 +378,13 @@ async function playSynthesizedResult(synthResult, sentenceText, token) {
   const ctx = getAudioContext();
 
   if (!ctx || ctx.state !== 'running') {
-    // Still animate BMO's viseme mouth timeline even if browser AudioContext awaits user gesture
+    // Try HTMLAudioElement WAV fallback first
+    const playedHtml = await playViaHtmlAudioElement(pcmFloat32, sampleRate, timeline, duration, token);
+    if (playedHtml || token !== playbackToken) return;
+
+    // Browser blocked autoplay before user's first gesture: queue for instant replay on first click/tap
+    pendingBlockedSpeech = { synthResult, sentenceText };
+    update({ autoplayBlocked: true });
     await animateTimelineOnly(timeline, duration, token);
     return;
   }
@@ -259,7 +400,11 @@ async function playSynthesizedResult(synthResult, sentenceText, token) {
 
     const source = ctx.createBufferSource();
     source.buffer = buffer;
-    source.connect(ctx.destination);
+
+    const gainNode = ctx.createGain();
+    gainNode.gain.value = 1.1;
+    source.connect(gainNode);
+    gainNode.connect(ctx.destination);
     activeSource = source;
 
     const startTime = ctx.currentTime;
@@ -272,6 +417,7 @@ async function playSynthesizedResult(synthResult, sentenceText, token) {
       if (activeSource === source) activeSource = null;
       try {
         source.disconnect();
+        gainNode.disconnect();
       } catch {}
       emitViseme('Neutral');
       resolve();
@@ -303,7 +449,7 @@ async function playSynthesizedResult(synthResult, sentenceText, token) {
     }, 10);
 
     try {
-      source.start();
+      source.start(0);
       syncMouth();
     } catch {
       finish();
@@ -311,15 +457,15 @@ async function playSynthesizedResult(synthResult, sentenceText, token) {
   });
 }
 
-/**
- * Queues a sentence for BMO to speak with Piper ONNX + viseme mouth synchronization.
- * Pre-synthesizes immediately in the worker while waiting for any earlier sentence to finish playing!
- */
-export function speakSentence(text, { lengthScale = speech.lengthScale } = {}) {
-  const clean = String(text || '').trim();
-  if (!clean) return Promise.resolve(false);
-
+function queueSingleSentence(clean, lengthScale, fullCaptionText) {
   const token = playbackToken;
+
+  if (speech.status !== 'speaking') {
+    update({
+      status: 'speaking',
+      currentSentence: fullCaptionText || clean,
+    });
+  }
 
   // Start synthesizing in Piper ONNX worker immediately so sentences pipeline with zero gap
   const synthPromise = synthesizePiper(clean, lengthScale).catch(() => {
@@ -336,7 +482,7 @@ export function speakSentence(text, { lengthScale = speech.lengthScale } = {}) {
     if (token !== playbackToken) return false;
     const result = await synthPromise;
     if (token !== playbackToken) return false;
-    await playSynthesizedResult(result, clean, token);
+    await playSynthesizedResult(result, fullCaptionText || clean, token);
     return true;
   };
 
@@ -349,4 +495,29 @@ export function speakSentence(text, { lengthScale = speech.lengthScale } = {}) {
 
   playbackQueue = next;
   return next;
+}
+
+/**
+ * Queues text for BMO to speak with Piper ONNX + viseme mouth synchronization.
+ * Automatically splits multi-sentence text into pipelined clauses so the first
+ * sentence starts speaking in ~150ms while subsequent sentences synthesize in parallel!
+ */
+export function speakSentence(text, { lengthScale = speech.lengthScale } = {}) {
+  const clean = String(text || '').trim();
+  if (!clean) return Promise.resolve(false);
+
+  const clauses = clean
+    .split(/(?<=[.!?])\s+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  if (clauses.length <= 1) {
+    return queueSingleSentence(clean, lengthScale, clean);
+  }
+
+  let lastPromise = Promise.resolve(false);
+  for (const clause of clauses) {
+    lastPromise = queueSingleSentence(clause, lengthScale, clean);
+  }
+  return lastPromise;
 }

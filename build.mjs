@@ -53,6 +53,7 @@ await Promise.all([
   copyFile('node_modules/onnxruntime-web/dist/ort.wasm.min.mjs', 'dist/vendor/ort/ort.wasm.min.mjs'),
   copyFile('node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.mjs', 'dist/vendor/ort/ort-wasm-simd-threaded.mjs'),
   copyFile('node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.wasm', 'dist/vendor/ort/ort-wasm-simd-threaded.wasm'),
+  copyFile('node_modules/@huggingface/transformers/dist/transformers.min.js', 'dist/vendor/transformers.min.js'),
   cp('assets/face', 'dist/assets/face', { recursive: true }),
   cp('assets/voice', 'dist/assets/voice', { recursive: true }),
 ]);

@@ -1,4 +1,4 @@
-import { ai, subscribeAI, autoBootAI, complete } from './ai.js?v=1';
+import { ai, subscribeAI, autoBootAI, complete } from './ai.js?v=2';
 import {
   speech,
   subscribeSpeech,
@@ -7,26 +7,53 @@ import {
   speakSentence,
   stopSpeech,
   unlockAudio,
-} from './speech.js?v=1';
-import { BmoFaceController } from './face.js?v=1';
-import { ConversationMemory } from './memory.js?v=1';
+  flushPendingSpeech,
+} from './speech.js?v=2';
+import { BmoFaceController } from './face.js?v=2';
+import { ConversationMemory } from './memory.js?v=2';
 import {
   mic,
   subscribeMic,
   onTranscription,
   requestMicPermission,
+  initSTT,
+  transcribeAudioFloat32,
   startListening,
   stopListening,
   toggleListening,
   setPausedForSpeech,
-} from './listening.js?v=1';
+} from './listening.js?v=2';
 
 const memory = new ConversationMemory();
 let face = null;
 let spaceDown = false;
 let keyboardOpen = false;
+let greetedOnVoiceReady = false;
+let greetedOnAiReady = false;
 
 const els = {};
+
+function buildWarmupReply(promptText) {
+  const lower = String(promptText || '').toLowerCase();
+  const pct = Math.max(1, Math.min(99, Math.round((ai.progress || 0.1) * 100)));
+
+  if (/\b(hi|hello|hey|yo|sup|howdy|greetings)\b/.test(lower)) {
+    return `Hello friend! I am BMO! I can hear you loud and clear! My Qwen brain is ${pct} percent loaded!`;
+  }
+  if (/\b(how are you|how's it going|how do you feel)\b/.test(lower)) {
+    return `I am feeling super mathematical today! My voice is working great, and my Qwen brain is ${pct} percent ready!`;
+  }
+  if (/\b(who are you|what is your name|your name)\b/.test(lower)) {
+    return `I am BMO, your living video game console and best friend! My Qwen brain is ${pct} percent loaded!`;
+  }
+  if (/\b(joke|funny|laugh)\b/.test(lower)) {
+    return `Why did the robot eat a lightbulb? Because it wanted a light snack! Hehe! My Qwen brain is at ${pct} percent!`;
+  }
+  if (/\b(sing|song|music)\b/.test(lower)) {
+    return `Beep boop beep! BMO loves singing little computer songs with you! My Qwen brain is ${pct} percent ready!`;
+  }
+  return `I heard you say: "${promptText}"! My Qwen brain is ${pct} percent finished loading, keep talking to me friend!`;
+}
 
 function refreshStatusUI() {
   if (!els.status) return;
@@ -40,17 +67,35 @@ function refreshStatusUI() {
       els.progressWrap.hidden = true;
     } else {
       els.progressWrap.hidden = false;
-      const combinedProgress = Math.round(((ai.progress || 0) * 0.55 + (speech.voiceProgress || 0) * 0.45) * 100);
+      const combinedProgress = Math.round(((speech.voiceProgress || 0) * 0.45 + (ai.progress || 0) * 0.55) * 100);
       els.progressBar.style.width = `${Math.max(5, Math.min(100, combinedProgress))}%`;
     }
   }
 
   if (speech.status === 'speaking') {
-    els.status.textContent = 'Talking';
+    els.status.textContent = speech.autoplayBlocked ? 'Tap BMO to unmute voice' : 'Talking';
     els.statusDot.dataset.state = 'talking';
     if (speech.currentSentence) {
       els.caption.textContent = speech.currentSentence;
     }
+    return;
+  }
+
+  if (speech.autoplayBlocked) {
+    els.status.textContent = 'Tap BMO to hear voice';
+    els.statusDot.dataset.state = 'talking';
+    return;
+  }
+
+  if (mic.transcribing) {
+    els.status.textContent = 'Transcribing…';
+    els.statusDot.dataset.state = 'thinking';
+    return;
+  }
+
+  if (mic.vadActive) {
+    els.status.textContent = 'Hearing you…';
+    els.statusDot.dataset.state = 'listening';
     return;
   }
 
@@ -64,12 +109,10 @@ function refreshStatusUI() {
     els.statusDot.dataset.state = ai.status === 'error' ? 'error' : 'loading';
     if (ai.status === 'error') {
       els.status.textContent = ai.error || 'AI load error';
-    } else if (!voiceReady && !aiReady) {
-      els.status.textContent = `${ai.text} · ${speech.voiceText}`;
-    } else if (!aiReady) {
-      els.status.textContent = ai.text;
-    } else {
+    } else if (!voiceReady) {
       els.status.textContent = speech.voiceText;
+    } else {
+      els.status.textContent = `BMO Voice Ready · ${ai.text}`;
     }
     return;
   }
@@ -77,7 +120,7 @@ function refreshStatusUI() {
   if (mic.listening) {
     els.status.textContent = 'Listening';
     els.statusDot.dataset.state = 'listening';
-    if (mic.interimText) {
+    if (mic.interimText && mic.interimText !== 'Hearing you…' && mic.interimText !== 'Transcribing…') {
       els.caption.textContent = `"${mic.interimText}…"`;
     }
   } else {
@@ -92,6 +135,10 @@ function refreshMicUI() {
   if (els.micLabel) {
     if (mic.permission === 'denied') {
       els.micLabel.textContent = 'Mic Blocked';
+    } else if (mic.transcribing) {
+      els.micLabel.textContent = 'Thinking…';
+    } else if (mic.vadActive) {
+      els.micLabel.textContent = 'Hearing…';
     } else if (mic.listening) {
       els.micLabel.textContent = 'Listening';
     } else {
@@ -99,9 +146,10 @@ function refreshMicUI() {
     }
   }
   if (els.micRing) {
-    if (mic.listening && mic.level > 0.04) {
-      els.micRing.style.opacity = String(Math.min(0.95, 0.25 + mic.level));
-      els.micRing.style.transform = `scale(${(1 + mic.level * 0.18).toFixed(2)})`;
+    if (mic.listening && (mic.level > 0.02 || mic.vadActive)) {
+      const lvl = mic.vadActive ? Math.max(0.35, mic.level) : mic.level;
+      els.micRing.style.opacity = String(Math.min(0.95, 0.25 + lvl));
+      els.micRing.style.transform = `scale(${(1 + lvl * 0.22).toFixed(2)})`;
     } else {
       els.micRing.style.opacity = '0';
       els.micRing.style.transform = 'scale(1)';
@@ -120,10 +168,11 @@ export async function submitUserPrompt(rawText) {
     els.caption.textContent = `You: "${prompt}"`;
   }
 
-  // If Qwen 0.5B hasn't finished loading yet, BMO still answers immediately with its ONNX voice & visemes!
+  // If Qwen 0.5B hasn't finished downloading yet, BMO still responds conversationally with its ONNX voice & visemes!
   if (ai.status !== 'ready') {
-    const warmupLine =
-      'Hi friend! I am BMO! My Qwen brain is almost done warming up, keep talking to me!';
+    const warmupLine = buildWarmupReply(prompt);
+    memory.addUser(prompt);
+    memory.addAssistant(warmupLine);
     if (els.caption) els.caption.textContent = warmupLine;
     await speakSentence(warmupLine);
     return;
@@ -157,7 +206,7 @@ export async function submitUserPrompt(rawText) {
     }
   } catch (err) {
     if (err?.name !== 'AbortError') {
-      const fallback = "Oh! My circuits tickled for a second. Say that again, friend!";
+      const fallback = 'Oh! My circuits tickled for a second. Say that again, friend!';
       if (els.caption) els.caption.textContent = fallback;
       await speakSentence(fallback);
     }
@@ -174,6 +223,32 @@ function toggleKeyboardBox(forceOpen) {
   }
   if (keyboardOpen && els.promptInput) {
     els.promptInput.focus();
+  }
+}
+
+async function bootModelsAndGreet() {
+  // 1. Prioritize BMO's 63 MB Piper ONNX voice + Microphone permission first so BMO speaks within seconds!
+  void requestMicPermission();
+  const voiceOk = await initVoice();
+
+  if (voiceOk && !greetedOnVoiceReady) {
+    greetedOnVoiceReady = true;
+    const greeting = 'Hi friend! I am BMO! Say hello, or tap the keyboard button to chat!';
+    if (els.caption) els.caption.textContent = greeting;
+    void speakSentence(greeting);
+  }
+
+  // 2. Boot Local Moonshine ONNX Speech-to-Text ear and Qwen 2.5 0.5B LLM brain
+  void initSTT();
+  const aiOk = await autoBootAI();
+
+  if (aiOk && !greetedOnAiReady) {
+    greetedOnAiReady = true;
+    if (speech.status === 'idle' && !mic.vadActive && !mic.transcribing) {
+      const readyLine = 'Yay! My Qwen brain is ready! Ask me anything!';
+      if (els.caption) els.caption.textContent = readyLine;
+      void speakSentence(readyLine);
+    }
   }
 }
 
@@ -219,23 +294,35 @@ async function initApp() {
     void submitUserPrompt(spokenText);
   });
 
-  // Unlock WebAudio on any interaction
-  const unlock = () => void unlockAudio();
+  // Unlock WebAudio & flush any autoplay-deferred greeting on any interaction
+  const unlock = () => {
+    void unlockAudio();
+    flushPendingSpeech();
+  };
   window.addEventListener('pointerdown', unlock, { passive: true });
   window.addEventListener('keydown', unlock, { passive: true });
 
   els.faceFrame?.addEventListener('click', () => {
     void unlockAudio();
+    const hadBlocked = speech.autoplayBlocked;
+    flushPendingSpeech();
     face.blink();
+    if (!hadBlocked && speech.voiceStatus === 'ready' && speech.status === 'idle' && !ai.busy) {
+      const tickleLine = 'Hehe! That tickles! Talk to me anytime, friend!';
+      if (els.caption) els.caption.textContent = tickleLine;
+      void speakSentence(tickleLine);
+    }
   });
 
   els.micBtn?.addEventListener('click', () => {
     void unlockAudio();
+    flushPendingSpeech();
     toggleListening();
   });
 
   els.kbdBtn?.addEventListener('click', () => {
     void unlockAudio();
+    flushPendingSpeech();
     toggleKeyboardBox();
   });
 
@@ -258,6 +345,7 @@ async function initApp() {
       e.preventDefault();
       spaceDown = true;
       void unlockAudio();
+      flushPendingSpeech();
       startListening();
     }
   });
@@ -279,15 +367,11 @@ async function initApp() {
     memory,
     submitUserPrompt,
     speakSentence,
+    transcribeAudioFloat32,
     toggleKeyboardBox,
   };
 
-  // Auto-load Qwen 0.5B, BMO Piper ONNX Voice, and request Microphone permission in parallel!
-  void Promise.all([
-    initVoice(),
-    autoBootAI(),
-    requestMicPermission(),
-  ]);
+  void bootModelsAndGreet();
 }
 
 if (document.readyState === 'loading') {

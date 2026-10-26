@@ -12,6 +12,7 @@ import {
   visemeAtTime,
 } from '../dist/visemes.js';
 import { ConversationMemory, BMO_PERSONALITY } from '../dist/memory.js';
+import { downsampleTo16k } from '../dist/listening.js';
 
 const ROOT = process.cwd();
 
@@ -121,4 +122,20 @@ test('eSpeak-NG IPA phonemizer + BMO ONNX Runtime synthesis produces audio and v
   assert.equal(visemeAtTime(timeline, midTime), timeline[2].viseme);
   assert.equal(visemeAtTime(timeline, 999), 'Neutral');
   assert.equal(phonemeToViseme('m'), 'M');
+});
+
+test('Local Moonshine ONNX STT worker and 16kHz microphone downsampler work cleanly', () => {
+  const sttWorkerPath = path.join(ROOT, 'dist', 'stt-worker.js');
+  const tfPath = path.join(ROOT, 'dist', 'vendor', 'transformers.min.js');
+  assert.ok(fs.existsSync(sttWorkerPath), 'Missing dist/stt-worker.js');
+  assert.ok(fs.existsSync(tfPath), 'Missing dist/vendor/transformers.min.js');
+  assert.ok(fs.statSync(tfPath).size < 25 * 1024 * 1024);
+
+  // 48kHz -> 16kHz 3:1 downsample check
+  const src48k = new Float32Array(4800);
+  for (let i = 0; i < src48k.length; i++) {
+    src48k[i] = Math.sin((2 * Math.PI * 440 * i) / 48000);
+  }
+  const out16k = downsampleTo16k(src48k, 48000);
+  assert.equal(out16k.length, 1600);
 });

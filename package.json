@@ -15,6 +15,7 @@
     "onnxruntime-web": "^1.30.0"
   },
   "devDependencies": {
+    "@huggingface/transformers": "^4.3.1",
     "esbuild": "0.25.12"
   }
 }
