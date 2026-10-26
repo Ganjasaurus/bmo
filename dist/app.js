@@ -1,4 +1,4 @@
-import { ai, subscribeAI, autoBootAI, complete } from './ai.js?v=5';
+import { ai, subscribeAI, autoBootAI, complete } from './ai.js?v=6';
 import {
   speech,
   subscribeSpeech,
@@ -8,10 +8,10 @@ import {
   stopSpeech,
   unlockAudio,
   flushPendingSpeech,
-} from './speech.js?v=5';
-import { BmoFaceController } from './face.js?v=5';
-import { FACE_NAMES } from './visemes.js?v=5';
-import { ConversationMemory, BMO_PERSONALITY, MAX_HISTORY } from './memory.js?v=5';
+} from './speech.js?v=6';
+import { BmoFaceController } from './face.js?v=6';
+import { FACE_NAMES } from './visemes.js?v=6';
+import { ConversationMemory, BMO_PERSONALITY, MAX_HISTORY } from './memory.js?v=6';
 import {
   mic,
   subscribeMic,
@@ -23,14 +23,14 @@ import {
   stopListening,
   toggleListening,
   setPausedForSpeech,
-} from './listening.js?v=5';
+} from './listening.js?v=6';
 import {
   IMAGE_PRESETS,
   detectImageRequest,
   generateLocalArtwork,
   loadSavedGallery,
   saveToGallery,
-} from './image-gen.js?v=5';
+} from './image-gen.js?v=6';
 
 const memory = new ConversationMemory(BMO_PERSONALITY, MAX_HISTORY, { persist: true });
 let face = null;
@@ -46,7 +46,7 @@ const els = {};
 
 function renderHistoryStrip() {
   if (!els.historyStrip) return;
-  const turns = memory.historyTurns().slice(-4);
+  const turns = memory.historyTurns().slice(-6);
   if (!turns.length) {
     els.historyStrip.hidden = true;
     els.historyStrip.innerHTML = '';
@@ -54,13 +54,39 @@ function renderHistoryStrip() {
   }
   els.historyStrip.hidden = false;
   els.historyStrip.innerHTML = '';
+
+  const header = document.createElement('div');
+  header.className = 'bmo-history-header';
+  const title = document.createElement('span');
+  title.textContent = `Recent Chat (${turns.length})`;
+  const clearBtn = document.createElement('button');
+  clearBtn.type = 'button';
+  clearBtn.className = 'bmo-history-clear';
+  clearBtn.textContent = 'Clear';
+  clearBtn.title = 'Clear conversation history';
+  clearBtn.addEventListener('click', () => {
+    memory.clear();
+    renderHistoryStrip();
+  });
+  header.appendChild(title);
+  header.appendChild(clearBtn);
+  els.historyStrip.appendChild(header);
+
   for (const t of turns) {
     const row = document.createElement('div');
     row.className = 'bmo-history-item';
+    row.title = t.role === 'assistant' ? 'Click to hear BMO say this again' : t.content;
     const who = document.createElement('strong');
     who.textContent = t.role === 'user' ? 'You: ' : 'BMO: ';
     row.appendChild(who);
     row.appendChild(document.createTextNode(t.content));
+    if (t.role === 'assistant') {
+      row.addEventListener('click', () => {
+        void unlockAudio();
+        if (els.caption) els.caption.textContent = t.content;
+        void speakSentence(t.content);
+      });
+    }
     els.historyStrip.appendChild(row);
   }
   els.historyStrip.scrollTop = els.historyStrip.scrollHeight;

@@ -605,6 +605,15 @@ export class BmoFaceController {
       ctx.fill();
     }
 
+    // Atmospheric mint-aqua BMO screen rim-light along left cheek & jawline
+    ctx.strokeStyle = 'rgba(175, 255, 238, 0.55)';
+    ctx.lineWidth = 4.5;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(w * 0.215, h * 0.48);
+    ctx.bezierCurveTo(w * 0.21, h * 0.62, w * 0.26, h * 0.72, w * 0.39, h * 0.79 + jawDrop * 0.58);
+    ctx.stroke();
+
     ctx.restore(); // end face clip
 
     // Re-trace and stroke crisp outer jaw contour on top
@@ -714,10 +723,10 @@ export class BmoFaceController {
         ctx.fill();
         ctx.clip();
 
-        // Pink medial tear-duct caruncle hint at inner corner
-        ctx.fillStyle = 'rgba(242, 138, 148, 0.75)';
+        // Subtle medial tear-duct caruncle hint tucked at the inner corner
+        ctx.fillStyle = 'rgba(235, 145, 152, 0.35)';
         ctx.beginPath();
-        ctx.arc(innerX + side * 4, 3, 6.5, 0, Math.PI * 2);
+        ctx.arc(innerX + side * 1.5, 3.5, 3.0, 0, Math.PI * 2);
         ctx.fill();
 
         // 2. Multi-Layered Jewel Anime Iris with Live Gaze Tracking
