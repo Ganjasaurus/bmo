@@ -1,0 +1,27 @@
+{
+  "model": "bmo.onnx",
+  "totalBytes": 63104544,
+  "sha256": "ffe771b69da039a1b323716dbe4eb3801fa6913a958d09bf20daefb6f44a1a3f",
+  "parts": [
+    {
+      "name": "bmo.onnx.part0",
+      "bytes": 15776136,
+      "sha256": "49eb5268ffb847639695f15588f666f32aa0c1f6dcb55b65b152db46670b303f"
+    },
+    {
+      "name": "bmo.onnx.part1",
+      "bytes": 15776136,
+      "sha256": "1d0a6b3b50dd94f9bd7cc0865b57fa0a15355832642b624075aa0b55f750bca4"
+    },
+    {
+      "name": "bmo.onnx.part2",
+      "bytes": 15776136,
+      "sha256": "d12db89f54e7e731993e1e0d49411d602e729ed8cb5249afcb916c0f3ab49c26"
+    },
+    {
+      "name": "bmo.onnx.part3",
+      "bytes": 15776136,
+      "sha256": "08ed1c29910370885e5dc1a76ce6333a68895c46aee1618421e6eac76ea66823"
+    }
+  ]
+}

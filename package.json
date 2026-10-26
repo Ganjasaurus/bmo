@@ -1,0 +1,20 @@
+{
+  "name": "bmo",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "BMO — Stripped-down On-Device Qwen 0.5B + Piper BMO ONNX Voice & Viseme Companion",
+  "scripts": {
+    "build": "node build.mjs",
+    "test": "node --test tests/*.test.mjs"
+  },
+  "dependencies": {
+    "@mlc-ai/web-llm": "0.2.85",
+    "@wllama/wllama": "3.8.1",
+    "@wllama/wllama-compat": "3.8.1",
+    "onnxruntime-web": "^1.30.0"
+  },
+  "devDependencies": {
+    "esbuild": "0.25.12"
+  }
+}
