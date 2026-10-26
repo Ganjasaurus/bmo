@@ -135,6 +135,21 @@ body {
   border-color: var(--bmo-accent);
 }
 
+.bmo-eye-swatch {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.72);
+  background: var(--swatch-color, #39d46e);
+  box-shadow: 0 0 8px var(--swatch-color, #39d46e);
+  cursor: pointer;
+  transition: transform 0.14s ease;
+}
+
+.bmo-eye-swatch:hover {
+  transform: scale(1.16);
+}
+
 .bmo-hud {
   width: 100%;
   display: flex;

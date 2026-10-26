@@ -1,4 +1,4 @@
-import { ai, subscribeAI, autoBootAI, complete } from './ai.js?v=9';
+import { ai, subscribeAI, autoBootAI, complete } from './ai.js?v=10';
 import {
   speech,
   subscribeSpeech,
@@ -8,10 +8,10 @@ import {
   stopSpeech,
   unlockAudio,
   flushPendingSpeech,
-} from './speech.js?v=9';
-import { BmoFaceController } from './face.js?v=9';
-import { FACE_NAMES } from './visemes.js?v=9';
-import { ConversationMemory, BMO_PERSONALITY, MAX_HISTORY } from './memory.js?v=9';
+} from './speech.js?v=10';
+import { BmoFaceController, EYE_THEMES } from './face.js?v=10';
+import { FACE_NAMES } from './visemes.js?v=10';
+import { ConversationMemory, BMO_PERSONALITY, MAX_HISTORY } from './memory.js?v=10';
 import {
   mic,
   subscribeMic,
@@ -23,14 +23,14 @@ import {
   stopListening,
   toggleListening,
   setPausedForSpeech,
-} from './listening.js?v=9';
+} from './listening.js?v=10';
 import {
   IMAGE_PRESETS,
   detectImageRequest,
   generateLocalArtwork,
   loadSavedGallery,
   saveToGallery,
-} from './image-gen.js?v=9';
+} from './image-gen.js?v=10';
 
 const memory = new ConversationMemory(BMO_PERSONALITY, MAX_HISTORY, { persist: true });
 let face = null;
@@ -513,6 +513,21 @@ async function initApp() {
         }
       });
       els.visemeStrip.appendChild(btn);
+    }
+
+    // Add 4 Jewel Eye Color Theme Swatches from eyes.jpg
+    for (const theme of Object.values(EYE_THEMES)) {
+      const swatch = document.createElement('button');
+      swatch.type = 'button';
+      swatch.className = 'bmo-eye-swatch';
+      swatch.title = `${theme.label} Anime Eyes`;
+      swatch.dataset.eyeTheme = theme.id;
+      swatch.style.setProperty('--swatch-color', theme.swatch);
+      swatch.addEventListener('click', (e) => {
+        e.stopPropagation();
+        face.setEyeTheme(theme.id);
+      });
+      els.visemeStrip.appendChild(swatch);
     }
   }
 

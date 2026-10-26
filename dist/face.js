@@ -2,6 +2,65 @@ import { FACE_NAMES } from './visemes.js?v=4';
 
 const BLINK_INTERVAL_MIN_MS = 2600;
 const BLINK_INTERVAL_MAX_MS = 5400;
+const EYE_THEME_KEY = 'bmo-eye-theme-v1';
+
+/**
+ * 4 Jewel Anime Eye Palettes matching the 4 rows of `eyes.jpg`:
+ * - emerald: Row 1 (Forest Emerald & Mint Lime)
+ * - sapphire: Row 2 (Deep Ocean Sapphire & Sky Cyan)
+ * - amber: Row 3 (Warm Honey Amber & Golden Sun)
+ * - amethyst: Row 4 (Royal Amethyst Violet & Rose Magenta)
+ */
+export const EYE_THEMES = {
+  emerald: {
+    id: 'emerald',
+    label: 'Emerald',
+    swatch: '#39d46e',
+    limbal: '#08221e',
+    top: '#0d3d28',
+    mid: '#1e8a4c',
+    low: '#59e06c',
+    bot: '#b6ff9c',
+    crescent: 'rgba(225, 255, 185, 0.75)',
+    ring: 'rgba(195, 255, 180, 0.55)',
+  },
+  sapphire: {
+    id: 'sapphire',
+    label: 'Sapphire',
+    swatch: '#38bdf8',
+    limbal: '#08182b',
+    top: '#0c2c52',
+    mid: '#1d6ec2',
+    low: '#4bc6ff',
+    bot: '#a8f2ff',
+    crescent: 'rgba(195, 245, 255, 0.75)',
+    ring: 'rgba(175, 238, 255, 0.55)',
+  },
+  amber: {
+    id: 'amber',
+    label: 'Amber',
+    swatch: '#fbbf24',
+    limbal: '#261408',
+    top: '#52290c',
+    mid: '#b86214',
+    low: '#f5a623',
+    bot: '#fff099',
+    crescent: 'rgba(255, 242, 180, 0.78)',
+    ring: 'rgba(255, 232, 155, 0.55)',
+  },
+  amethyst: {
+    id: 'amethyst',
+    label: 'Amethyst',
+    swatch: '#c084fc',
+    limbal: '#1f092b',
+    top: '#3e1257',
+    mid: '#8a32ad',
+    low: '#d86bfa',
+    bot: '#ffb5f8',
+    crescent: 'rgba(255, 210, 250, 0.75)',
+    ring: 'rgba(245, 195, 255, 0.55)',
+  },
+};
 
 /**
  * Anatomical & stylistic anime mouth parameters for all 12 BMO visemes:
@@ -169,6 +228,13 @@ export class BmoFaceController {
     this.targetBlink = 0;
     this.loaded = false;
     this.mood = 'happy'; // 'happy' | 'listening' | 'thinking' | 'talking'
+    this.eyeTheme = 'emerald';
+    try {
+      const savedTheme = typeof localStorage !== 'undefined' && localStorage.getItem(EYE_THEME_KEY);
+      if (savedTheme && EYE_THEMES[savedTheme]) this.eyeTheme = savedTheme;
+    } catch {
+      // ignore storage errors
+    }
 
     // Interpolated live mouth state for silky 60fps coarticulation
     this.mouthState = { ...VISEME_SHAPES.Neutral };
@@ -231,6 +297,17 @@ export class BmoFaceController {
 
   setMood(mood) {
     this.mood = mood || 'happy';
+  }
+
+  setEyeTheme(themeId) {
+    if (!EYE_THEMES[themeId]) return;
+    this.eyeTheme = themeId;
+    try {
+      if (typeof localStorage !== 'undefined') localStorage.setItem(EYE_THEME_KEY, themeId);
+    } catch {
+      // ignore
+    }
+    this.render(performance.now());
   }
 
   setViseme(visemeName) {
@@ -741,23 +818,24 @@ export class BmoFaceController {
         ctx.arc(innerX + side * 1.5, 3.5, 3.0, 0, Math.PI * 2);
         ctx.fill();
 
-        // 2. Multi-Layered Jewel Anime Iris with Live Gaze Tracking
+        // 2. Multi-Layered Jewel Anime Iris with Live Gaze Tracking & Theme Palette
+        const theme = EYE_THEMES[this.eyeTheme] || EYE_THEMES.emerald;
         const ix = this.gazeX * 13.5;
         const iy = this.gazeY * 7.5 + 1;
         const irisR = 32;
 
-        // Outer limbal ring (deep emerald-charcoal border)
-        ctx.fillStyle = '#08221e';
+        // Outer limbal ring
+        ctx.fillStyle = theme.limbal;
         ctx.beginPath();
         ctx.ellipse(ix, iy, irisR, irisR * 1.06, 0, 0, Math.PI * 2);
         ctx.fill();
 
-        // Main 4-stop Jewel Iris Gradient (deep forest top -> vibrant emerald -> luminous mint-lime bottom)
+        // Main 4-stop Jewel Iris Gradient
         const irisGrad = ctx.createLinearGradient(ix, iy - irisR, ix, iy + irisR);
-        irisGrad.addColorStop(0, '#0d3d28');
-        irisGrad.addColorStop(0.38, '#1e8a4c');
-        irisGrad.addColorStop(0.75, '#59e06c');
-        irisGrad.addColorStop(1, '#b6ff9c');
+        irisGrad.addColorStop(0, theme.top);
+        irisGrad.addColorStop(0.38, theme.mid);
+        irisGrad.addColorStop(0.75, theme.low);
+        irisGrad.addColorStop(1, theme.bot);
         ctx.fillStyle = irisGrad;
         ctx.beginPath();
         ctx.ellipse(ix, iy, irisR - 3.2, (irisR - 3.2) * 1.06, 0, 0, Math.PI * 2);
@@ -765,8 +843,8 @@ export class BmoFaceController {
 
         // Upper iris twilight shadow dome (classic anime eye depth)
         const domeGrad = ctx.createLinearGradient(ix, iy - irisR, ix, iy + 4);
-        domeGrad.addColorStop(0, 'rgba(7, 30, 26, 0.72)');
-        domeGrad.addColorStop(1, 'rgba(7, 30, 26, 0.0)');
+        domeGrad.addColorStop(0, 'rgba(7, 24, 30, 0.72)');
+        domeGrad.addColorStop(1, 'rgba(7, 24, 30, 0.0)');
         ctx.fillStyle = domeGrad;
         ctx.beginPath();
         ctx.ellipse(ix, iy - 4, irisR - 3.5, (irisR - 3.5) * 0.9, 0, 0, Math.PI * 2);
@@ -775,7 +853,7 @@ export class BmoFaceController {
         // 24 alternating radial iris crystalline fibers
         for (let a = 0; a < 24; a++) {
           const ang = (a * Math.PI) / 12;
-          ctx.strokeStyle = a % 2 === 0 ? 'rgba(215, 255, 225, 0.24)' : 'rgba(8, 36, 28, 0.28)';
+          ctx.strokeStyle = a % 2 === 0 ? 'rgba(255, 255, 255, 0.24)' : 'rgba(8, 22, 28, 0.28)';
           ctx.lineWidth = a % 2 === 0 ? 1.5 : 1.1;
           ctx.beginPath();
           ctx.moveTo(ix + Math.cos(ang) * 12, iy + Math.sin(ang) * 12);
@@ -785,17 +863,17 @@ export class BmoFaceController {
 
         // Luminous lower iris crescent gem reflection
         const crescentGrad = ctx.createRadialGradient(ix, iy + irisR * 0.45, 2, ix, iy + irisR * 0.45, irisR * 0.58);
-        crescentGrad.addColorStop(0, 'rgba(225, 255, 185, 0.75)');
-        crescentGrad.addColorStop(0.65, 'rgba(130, 255, 165, 0.35)');
-        crescentGrad.addColorStop(1, 'rgba(130, 255, 165, 0)');
+        crescentGrad.addColorStop(0, theme.crescent);
+        crescentGrad.addColorStop(0.65, theme.ring);
+        crescentGrad.addColorStop(1, 'rgba(255, 255, 255, 0)');
         ctx.fillStyle = crescentGrad;
         ctx.beginPath();
         ctx.ellipse(ix, iy + irisR * 0.44, irisR * 0.56, irisR * 0.26, 0, 0, Math.PI * 2);
         ctx.fill();
 
-        // Glowing golden-mint ring around the pupil
-        const pupilR = 13.8 + Math.sin(now * 0.003) * 0.6;
-        ctx.strokeStyle = 'rgba(195, 255, 180, 0.55)';
+        // Glowing ring around the pupil
+        const pupilR = 13.8 + Math.sin(now * 0.003) * 0.6 + (this.mood === 'listening' ? 0.8 : 0);
+        ctx.strokeStyle = theme.ring;
         ctx.lineWidth = 2.2;
         ctx.beginPath();
         ctx.ellipse(ix, iy, pupilR + 2.2, (pupilR + 2.2) * 1.06, 0, 0, Math.PI * 2);
