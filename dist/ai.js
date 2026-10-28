@@ -194,16 +194,17 @@ export function enableAI(modelId = ai.modelId, { nCtx = ai.nCtx } = {}) {
   resetSession(abortError('Switching AI model session.'));
   const run = epoch;
   const signal = session.signal;
-  const backend = spec.backend;
+  let activeSpec = spec;
+  let backend = activeSpec.backend;
 
   update({
     status: 'loading',
     phase: 'device',
-    modelId: spec.id,
-    modelSpec: spec,
+    modelId: activeSpec.id,
+    modelSpec: activeSpec,
     nCtx,
     backend,
-    text: `Preparing ${spec.shortLabel}…`,
+    text: `Preparing ${activeSpec.shortLabel}…`,
     progress: 0.02,
     error: null,
     busy: false,
@@ -219,6 +220,32 @@ export function enableAI(modelId = ai.modelId, { nCtx = ai.nCtx } = {}) {
       }
       let engine;
       let loadedFromCache = false;
+      let adapter = null;
+
+      if (backend === 'webgpu') {
+        if (navigator.gpu) {
+          try {
+            adapter = await waitForAI(navigator.gpu.requestAdapter(), {
+              signal,
+              timeoutMs: 15000,
+              message: 'WebGPU detection timed out. Switch to Qwen 2.5 0.5B (CPU).',
+            });
+          } catch {
+            adapter = null;
+          }
+        }
+        if (!adapter) {
+          activeSpec = MODEL_CATALOG[0];
+          backend = activeSpec.backend;
+          update({
+            modelId: activeSpec.id,
+            modelSpec: activeSpec,
+            backend,
+            phase: 'device',
+            text: `WebGPU unavailable — falling back to ${activeSpec.shortLabel} (CPU)…`,
+          });
+        }
+      }
 
       if (backend === 'cpu') {
         if (!globalThis.WebAssembly || !globalThis.Worker) {
@@ -230,7 +257,7 @@ export function enableAI(modelId = ai.modelId, { nCtx = ai.nCtx } = {}) {
           message: 'The wllama CPU runtime could not load.',
         });
         if (signal.aborted) throw signal.reason;
-        engine = createPhoneEngine(spec.id, { nCtx });
+        engine = createPhoneEngine(activeSpec.id, { nCtx });
         ai.worker = { terminate: () => engine.dispose() };
         ai.engine = engine;
 
@@ -243,15 +270,15 @@ export function enableAI(modelId = ai.modelId, { nCtx = ai.nCtx } = {}) {
             },
             onProgress: ({ loaded, total }) => {
               if (run !== epoch) return;
-              const expectedTotal = total || spec.sizeMB * 1048576;
+              const expectedTotal = total || activeSpec.sizeMB * 1048576;
               const fraction = expectedTotal ? loaded / expectedTotal : 0;
               update({
                 phase: 'download',
                 progress: Math.min(0.9, fraction * 0.9),
                 text:
                   fraction >= 1
-                    ? `Finishing ${spec.shortLabel}…`
-                    : `Downloading ${spec.shortLabel} · ${Math.round(loaded / 1000000)} / ${Math.round(expectedTotal / 1000000)} MB (${Math.round(fraction * 100)}%)`,
+                    ? `Finishing ${activeSpec.shortLabel}…`
+                    : `Downloading ${activeSpec.shortLabel} · ${Math.round(loaded / 1000000)} / ${Math.round(expectedTotal / 1000000)} MB (${Math.round(fraction * 100)}%)`,
               });
             },
           }),
@@ -263,19 +290,8 @@ export function enableAI(modelId = ai.modelId, { nCtx = ai.nCtx } = {}) {
         );
         if (loadInfo?.loadedFromCache) loadedFromCache = true;
       } else {
-        if (!navigator.gpu) {
-          throw new Error('WebGPU is unavailable in this browser. Switch to Qwen 2.5 0.5B (CPU)!');
-        }
-        const adapter = await waitForAI(navigator.gpu.requestAdapter(), {
-          signal,
-          timeoutMs: 15000,
-          message: 'WebGPU detection timed out. Switch to Qwen 2.5 0.5B (CPU).',
-        });
-        if (!adapter) {
-          throw new Error('No compatible WebGPU adapter found. Select Qwen 2.5 0.5B (CPU).');
-        }
         const precision = adapter.features.has('shader-f16') ? '16' : '32';
-        const mlcModelId = `Qwen3-${spec.webllmSize}-q4f${precision}_1-MLC`;
+        const mlcModelId = `Qwen3-${activeSpec.webllmSize}-q4f${precision}_1-MLC`;
         const { CreateWebWorkerMLCEngine } = await waitForAI(import('./vendor/engine.js?v=1'), {
           signal,
           timeoutMs: 45000,
@@ -311,7 +327,7 @@ export function enableAI(modelId = ai.modelId, { nCtx = ai.nCtx } = {}) {
 
       if (run !== epoch) return false;
       ai.engine = engine;
-      update({ phase: 'verifying', progress: 0.95, text: `Warming up ${spec.shortLabel}…` });
+      update({ phase: 'verifying', progress: 0.95, text: `Warming up ${activeSpec.shortLabel}…` });
 
       await verifyAIReady(engine, {
         signal,
@@ -322,13 +338,13 @@ export function enableAI(modelId = ai.modelId, { nCtx = ai.nCtx } = {}) {
       });
       if (run !== epoch) return false;
 
-      savePreferences({ modelId: spec.id, nCtx, autoLoad: true });
+      savePreferences({ modelId: activeSpec.id, nCtx, autoLoad: true });
 
       update({
         status: 'ready',
         phase: 'ready',
         progress: 1,
-        text: `${spec.shortLabel} Ready`,
+        text: `${activeSpec.shortLabel} Ready`,
         error: null,
         telemetry: {
           ...ai.telemetry,
