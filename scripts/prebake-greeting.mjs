@@ -66,7 +66,7 @@ async function main() {
     { id: 'greet-2', text: 'I am BMO!' },
     { id: 'greet-3', text: 'Say hello, or tap the keyboard button to chat!' },
     { id: 'ready-1', text: 'Yay!' },
-    { id: 'ready-2', text: 'My SmolLM brain is ready!' },
+    { id: 'ready-2', text: 'My witty brain is ready!' },
     { id: 'ready-3', text: 'Ask me for a story, song, or joke!' },
     { id: 'tickle-1', text: 'Hehe!' },
     { id: 'tickle-2', text: 'That tickles!' },
@@ -108,7 +108,7 @@ async function main() {
       audioParts.push(chunkAudio);
 
       const sampleCounts = Array.from(rawAlign, (v) => Math.round(v * hopLength));
-      const chunkTimeline = buildTimeline(phonemes, phonemeIds, sampleCounts, sampleRate);
+      const chunkTimeline = buildTimeline(phonemes, phonemeIds, sampleCounts, sampleRate, config.phoneme_id_map);
       for (const t of chunkTimeline) {
         fullTimeline.push({
           start: Number((t.start + timeOffset).toFixed(4)),

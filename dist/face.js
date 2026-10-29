@@ -1,4 +1,4 @@
-import { FACE_NAMES } from './visemes.js?v=4';
+import { FACE_NAMES } from './visemes.js?v=12';
 
 const BLINK_INTERVAL_MIN_MS = 2600;
 const BLINK_INTERVAL_MAX_MS = 5400;

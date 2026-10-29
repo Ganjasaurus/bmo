@@ -6,6 +6,8 @@ import {
   FACE_NAMES,
   phonemeToViseme,
   extractSentences,
+  sanitizeForSpeech,
+  splitIntoSpeakableChunks,
   phonemizeClauseText,
   phonemesToIds,
   buildTimeline,
@@ -43,7 +45,8 @@ test('BMO face sprites and ONNX voice manifest exist and stay under 25 MiB per f
   assert.equal(sum, manifest.totalBytes);
 });
 
-test('extractSentences splits streaming tokens into sentences like desktop BMO', () => {
+test('extractSentences handles streaming tokens, ellipses, abbreviations, decimals, quotes, lyrics, and run-on clauses', () => {
+  // 1. Standard streaming behavior
   const step1 = extractSentences('Hello friend');
   assert.deepEqual(step1.sentences, []);
   assert.equal(step1.buffer, 'Hello friend');
@@ -51,6 +54,46 @@ test('extractSentences splits streaming tokens into sentences like desktop BMO',
   const step2 = extractSentences('Hello friend! I am BMO. How are ');
   assert.deepEqual(step2.sentences, ['Hello friend!', 'I am BMO.']);
   assert.equal(step2.buffer, ' How are ');
+
+  // 2. Ellipses & multi-punctuation wait until trailing char arrives and never emit stray "."
+  const midEllipsis = extractSentences('Hmm...');
+  assert.deepEqual(midEllipsis.sentences, []);
+  assert.equal(midEllipsis.buffer, 'Hmm...');
+
+  const fullEllipsis = extractSentences('Hmm... wait?! Really!! Next');
+  assert.deepEqual(fullEllipsis.sentences, ['Hmm...', 'wait?!', 'Really!!']);
+  assert.equal(fullEllipsis.buffer, ' Next');
+
+  // 3. Abbreviations, decimals, initials, and list numbers never trigger false splits
+  const abbrev = extractSentences('1. Dr. Pepper costs 3.50 coins vs. Mr. Robot! Tail');
+  assert.deepEqual(abbrev.sentences, ['1. Dr. Pepper costs 3.50 coins vs. Mr. Robot!']);
+  assert.equal(abbrev.buffer, ' Tail');
+
+  // 4. Closing quotes stay attached to their sentence
+  const quoted = extractSentences('"Beep boop!" cheered BMO. More');
+  assert.deepEqual(quoted.sentences, ['"Beep boop!"', 'cheered BMO.']);
+  assert.equal(quoted.buffer, ' More');
+
+  // 5. Song lyrics & poems split cleanly line-by-line on newlines
+  const lyrics = extractSentences('Pixel stars up in the sky\nDancing fireflies floating by\nPressing start');
+  assert.deepEqual(lyrics.sentences, ['Pixel stars up in the sky', 'Dancing fireflies floating by']);
+  assert.equal(lyrics.buffer, 'Pressing start');
+
+  // 6. Long run-on opening clause sub-splits on comma when firstChunk=true for fast TTFS
+  const runOn = extractSentences(
+    'Once upon a time in a glowing emerald forest, a tiny brave squirrel wore an acorn wizard hat',
+    { firstChunk: true }
+  );
+  assert.deepEqual(runOn.sentences, ['Once upon a time in a glowing emerald forest,']);
+  assert.ok(runOn.buffer.includes('a tiny brave squirrel'));
+
+  // 7. Sanitizer strips stage emotes & emojis while expanding titles & decimals for clean Piper TTS
+  const sanitized = sanitizeForSpeech('*giggles* Dr. Pepper rated it **9.5** out of 10! 🎮✨');
+  assert.equal(sanitized, 'Doctor Pepper rated it 9 point 5 out of 10!');
+  assert.deepEqual(splitIntoSpeakableChunks('...\n*wiggles*\nHello friend! 🎮\nHow are you?'), [
+    'Hello friend!',
+    'How are you?',
+  ]);
 });
 
 test('ConversationMemory retains system personality and caps history at MAX_HISTORY', () => {
@@ -125,6 +168,24 @@ test('eSpeak-NG IPA phonemizer + BMO ONNX Runtime synthesis produces audio and v
   assert.equal(visemeAtTime(timeline, midTime), timeline[2].viseme);
   assert.equal(visemeAtTime(timeline, 999), 'Neutral');
   assert.equal(phonemeToViseme('m'), 'M');
+
+  // Verify full British RP / American IPA coverage (never drops active vowels/consonants to Neutral)
+  assert.equal(phonemeToViseme('ɜ'), 'Uh'); // NURSE vowel ("world", "bird", "squirrel")
+  assert.equal(phonemeToViseme('ᵻ'), 'E'); // eSpeak reduced vowel ("roses", "wishes")
+  assert.equal(phonemeToViseme('ɫ'), 'L'); // dark L ("ball", "little")
+  assert.equal(phonemeToViseme('ɾ'), 'D'); // alveolar tap ("butter", "water")
+  assert.equal(phonemeToViseme('ʉ'), 'Woo'); // modern RP GOOSE vowel ("you", "moon")
+  assert.equal(phonemeToViseme('˞'), 'R'); // rhotic hook
+  assert.equal(phonemeToViseme('ˑ', 'A'), 'A'); // half-long vowel holds previous viseme
+
+  // Verify drift-proof alignment when an unmapped combining diacritic appears in phonemes
+  const phonemesWithUnmapped = ['h', '\u0361', 'a', '!'];
+  const idsUnmapped = phonemesToIds(phonemesWithUnmapped, config.phoneme_id_map);
+  const dummyAlign = idsUnmapped.map(() => 1600);
+  const driftSafeTimeline = buildTimeline(phonemesWithUnmapped, idsUnmapped, dummyAlign, 16000, config.phoneme_id_map);
+  assert.equal(driftSafeTimeline[0].viseme, 'Uh');
+  assert.equal(driftSafeTimeline[1].viseme, 'A');
+  assert.equal(driftSafeTimeline[2].viseme, 'Neutral');
 });
 
 test('Local Moonshine ONNX STT worker and 16kHz microphone downsampler work cleanly', () => {
@@ -173,14 +234,18 @@ test('Local Image Generator detects drawing requests and parses scene descriptor
   assert.ok(IMAGE_STYLES.length >= 5);
 });
 
-test('Ultra-tiny SmolLM2 135M English brain is default and prebaked voice greetings exist', () => {
-  assert.equal(ai.modelId, 'smollm2-135m-q4km-cpu');
-  assert.equal(MODEL_CATALOG[0].id, 'smollm2-135m-q4km-cpu');
-  assert.ok(MODEL_CATALOG[0].sizeMB <= 105, 'Default brain should be <= 105 MB');
+test('LiquidAI LFM2.5-350M Witty brain is default alongside Heretic & Dolphin fine-tunes and prebaked voice greetings exist', () => {
+  assert.equal(ai.modelId, 'lfm2.5-350m-qad-cpu');
+  assert.equal(MODEL_CATALOG[0].id, 'lfm2.5-350m-qad-cpu');
+  assert.ok(MODEL_CATALOG[0].sizeMB <= 215, 'Default witty brain should be <= 215 MB');
+  assert.ok(MODEL_CATALOG.some((m) => m.id === 'lfm2.5-350m-heretic-cpu'));
+  assert.ok(MODEL_CATALOG.some((m) => m.id === 'dolphin3-0.5b-q4km-cpu'));
+  assert.ok(MODEL_CATALOG.some((m) => m.id === 'smollm2-135m-q4km-cpu'));
 
   const prebakedPath = path.join(ROOT, 'dist', 'assets', 'voice', 'prebaked', 'manifest.json');
   assert.ok(fs.existsSync(prebakedPath), 'Missing prebaked voice greeting manifest');
   const prebaked = JSON.parse(fs.readFileSync(prebakedPath, 'utf8'));
   assert.ok(prebaked['Hi friend!'], 'Missing prebaked "Hi friend!" utterance');
+  assert.ok(prebaked['My witty brain is ready!'], 'Missing prebaked witty brain ready utterance');
   assert.ok(prebaked['Hi friend!'].timeline.length >= 10);
 });

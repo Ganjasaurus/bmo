@@ -4,7 +4,7 @@ import {
   phonemizeClauseText,
   phonemesToIds,
   buildTimeline,
-} from './visemes.js?v=1';
+} from './visemes.js?v=12';
 
 const ort = ortModule.default || ortModule;
 ort.env.wasm.numThreads = 1;
@@ -231,7 +231,7 @@ async function synthesizeSentence(text, lengthScaleOverride) {
       for (let i = 0; i < rawAlign.length; i++) {
         sampleCounts[i] = Math.round(rawAlign[i] * hopLength);
       }
-      const chunkTimeline = buildTimeline(phonemes, phonemeIds, sampleCounts, sampleRate);
+      const chunkTimeline = buildTimeline(phonemes, phonemeIds, sampleCounts, sampleRate, config.phoneme_id_map);
       for (const item of chunkTimeline) {
         fullTimeline.push({
           start: item.start + timeOffset,
@@ -246,18 +246,51 @@ async function synthesizeSentence(text, lengthScaleOverride) {
   }
 
   const totalSamples = audioParts.reduce((sum, a) => sum + a.length, 0);
-  const pcmFloat32 = new Float32Array(totalSamples);
+  const rawPcm = new Float32Array(totalSamples);
   let offset = 0;
   for (const part of audioParts) {
-    pcmFloat32.set(part, offset);
+    rawPcm.set(part, offset);
     offset += part.length;
+  }
+
+  // Trim excess leading/trailing dead digital silence while shifting viseme timestamps by exact sample offset
+  const silenceThresh = 0.0028;
+  let firstVoice = 0;
+  while (firstVoice < totalSamples && Math.abs(rawPcm[firstVoice]) < silenceThresh) {
+    firstVoice++;
+  }
+  let lastVoice = totalSamples - 1;
+  while (lastVoice > firstVoice && Math.abs(rawPcm[lastVoice]) < silenceThresh) {
+    lastVoice--;
+  }
+
+  const leadPad = Math.round(sampleRate * 0.018); // 18ms crisp attack margin
+  const tailPad = Math.round(sampleRate * 0.075); // 75ms natural clause breath
+  const trimStart = firstVoice < totalSamples ? Math.max(0, firstVoice - leadPad) : 0;
+  const trimEnd = firstVoice < totalSamples ? Math.min(totalSamples, lastVoice + tailPad + 1) : totalSamples;
+  const pcmFloat32 = rawPcm.slice(trimStart, trimEnd);
+  const trimShiftSec = trimStart / sampleRate;
+  const newDuration = pcmFloat32.length / sampleRate;
+
+  const shiftedTimeline = [];
+  for (const item of fullTimeline) {
+    const s = Math.max(0, item.start - trimShiftSec);
+    const e = Math.min(newDuration, item.end - trimShiftSec);
+    if (e > s + 0.002) {
+      shiftedTimeline.push({
+        start: s,
+        end: e,
+        phoneme: item.phoneme,
+        viseme: item.viseme,
+      });
+    }
   }
 
   return {
     pcmFloat32,
     sampleRate,
-    timeline: fullTimeline,
-    duration: totalSamples / sampleRate,
+    timeline: shiftedTimeline,
+    duration: newDuration,
   };
 }
 

@@ -15,9 +15,37 @@ if (originalFetch && !globalThis.__hfReferrerPatched) {
 }
 
 export const CPU_MODELS = {
+  'lfm2.5-350m-qad-cpu': {
+    id: 'lfm2.5-350m-qad-cpu',
+    label: 'LiquidAI LFM2.5 350M Witty (209 MB · Best Wit, Lyrics & Jokes)',
+    family: 'LFM2.5 350M',
+    params: '0.35B',
+    quant: 'QAD-Q4_0 (GGUF)',
+    backend: 'cpu',
+    runtimeName: 'wllama (LiquidAI Hybrid WASM)',
+    url: 'https://huggingface.co/LiquidAI/LFM2.5-350M-GGUF/resolve/main/LFM2.5-350M-QAD-Q4_0.gguf',
+    bytes: 219312832,
+    mbLabel: '209 MB',
+    recommendedPhone: true,
+    disableThinking: false,
+  },
+  'lfm2.5-350m-heretic-cpu': {
+    id: 'lfm2.5-350m-heretic-cpu',
+    label: 'LFM2.5 350M Heretic (219 MB · Unfiltered Creative & Cheeky)',
+    family: 'LFM2.5 Heretic',
+    params: '0.35B',
+    quant: 'Q4_K_M imatrix (GGUF)',
+    backend: 'cpu',
+    runtimeName: 'wllama (LiquidAI Hybrid WASM)',
+    url: 'https://huggingface.co/FadedRedStar/LFM2.5-350M-heretic-imatrix-GGUF/resolve/main/LFM2.5-350M-heretic-Q4_K_M-imatrix.gguf',
+    bytes: 229312512,
+    mbLabel: '219 MB',
+    recommendedPhone: true,
+    disableThinking: false,
+  },
   'smollm2-135m-q4km-cpu': {
     id: 'smollm2-135m-q4km-cpu',
-    label: 'SmolLM2 135M (100 MB · Ultra-Fast English Chat/Stories)',
+    label: 'SmolLM2 135M Turbo (100 MB · Ultra-Tiny Instant English)',
     family: 'SmolLM2 135M',
     params: '0.135B',
     quant: 'Q4_K_M (GGUF)',
@@ -29,9 +57,37 @@ export const CPU_MODELS = {
     recommendedPhone: true,
     disableThinking: false,
   },
+  'smollm2-360m-q4km-cpu': {
+    id: 'smollm2-360m-q4km-cpu',
+    label: 'SmolLM2 360M Storyteller (258 MB · Fast Bedtime Stories)',
+    family: 'SmolLM2 360M',
+    params: '0.36B',
+    quant: 'Q4_K_M (GGUF)',
+    backend: 'cpu',
+    runtimeName: 'wllama (llama.cpp WASM CPU)',
+    url: 'https://huggingface.co/unsloth/SmolLM2-360M-Instruct-GGUF/resolve/main/SmolLM2-360M-Instruct-Q4_K_M.gguf',
+    bytes: 270590560,
+    mbLabel: '258 MB',
+    recommendedPhone: true,
+    disableThinking: false,
+  },
+  'dolphin3-0.5b-q4km-cpu': {
+    id: 'dolphin3-0.5b-q4km-cpu',
+    label: 'Dolphin 3.0 0.5B Persona (379 MB · Custom Roleplay Fine-Tune)',
+    family: 'Dolphin 3.0 0.5B',
+    params: '0.49B',
+    quant: 'Q4_K_M (GGUF)',
+    backend: 'cpu',
+    runtimeName: 'wllama (llama.cpp WASM CPU)',
+    url: 'https://huggingface.co/bartowski/Dolphin3.0-Qwen2.5-0.5B-GGUF/resolve/main/Dolphin3.0-Qwen2.5-0.5B-Q4_K_M.gguf',
+    bytes: 397811008,
+    mbLabel: '379 MB',
+    recommendedPhone: true,
+    disableThinking: false,
+  },
   'smollm2-135m-q2k-cpu': {
     id: 'smollm2-135m-q2k-cpu',
-    label: 'SmolLM2 135M Nano (84 MB · Featherweight English)',
+    label: 'SmolLM2 135M Nano (84 MB · Featherweight Fallback)',
     family: 'SmolLM2 135M Nano',
     params: '0.135B',
     quant: 'Q2_K (GGUF)',
@@ -43,51 +99,9 @@ export const CPU_MODELS = {
     recommendedPhone: true,
     disableThinking: false,
   },
-  'smollm2-360m-q4km-cpu': {
-    id: 'smollm2-360m-q4km-cpu',
-    label: 'SmolLM2 360M Storyteller (258 MB · Deeper Stories & Lyrics)',
-    family: 'SmolLM2 360M',
-    params: '0.36B',
-    quant: 'Q4_K_M (GGUF)',
-    backend: 'cpu',
-    runtimeName: 'wllama (llama.cpp WASM CPU)',
-    url: 'https://huggingface.co/bartowski/SmolLM2-360M-Instruct-GGUF/resolve/main/SmolLM2-360M-Instruct-Q4_K_M.gguf',
-    bytes: 270590880,
-    mbLabel: '258 MB',
-    recommendedPhone: true,
-    disableThinking: false,
-  },
-  'qwen2.5-0.5b-q4km-cpu': {
-    id: 'qwen2.5-0.5b-q4km-cpu',
-    label: 'Qwen 2.5 0.5B (469 MB · General & Multilingual)',
-    family: 'Qwen 2.5 0.5B',
-    params: '0.49B',
-    quant: 'Q4_K_M (GGUF)',
-    backend: 'cpu',
-    runtimeName: 'wllama (llama.cpp WASM CPU)',
-    url: 'https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF/resolve/main/qwen2.5-0.5b-instruct-q4_k_m.gguf',
-    bytes: 491400032,
-    mbLabel: '469 MB',
-    recommendedPhone: true,
-    disableThinking: false,
-  },
-  'qwen2.5-0.5b-q2k-cpu': {
-    id: 'qwen2.5-0.5b-q2k-cpu',
-    label: 'Qwen 2.5 0.5B Lite (396 MB · Low-RAM)',
-    family: 'Qwen 2.5 0.5B',
-    params: '0.49B',
-    quant: 'Q2_K (GGUF)',
-    backend: 'cpu',
-    runtimeName: 'wllama (llama.cpp WASM CPU)',
-    url: 'https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF/resolve/main/qwen2.5-0.5b-instruct-q2_k.gguf',
-    bytes: 415182688,
-    mbLabel: '396 MB',
-    recommendedPhone: true,
-    disableThinking: false,
-  },
 };
 
-export const DEFAULT_CPU_MODEL_ID = 'smollm2-135m-q4km-cpu';
+export const DEFAULT_CPU_MODEL_ID = 'lfm2.5-350m-qad-cpu';
 
 const BRAIN_DB_NAME = 'bmo-brain-cache-v2';
 const BRAIN_STORE = 'models';
@@ -188,7 +202,7 @@ async function fetchRangePart(url, start, end, signal, onDelta) {
 
 async function downloadBrainFast(spec, { signal, onProgress }) {
   const total = spec.bytes;
-  const numStreams = 4;
+  const numStreams = 6;
   const partSize = Math.ceil(total / numStreams);
   let loaded = 0;
   let lastReport = 0;
@@ -246,8 +260,9 @@ async function downloadBrainFast(spec, { signal, onProgress }) {
 }
 
 function runtime() {
+  const origin = globalThis.location?.origin || '';
   const instance = new Wllama(
-    { default: '/vendor/wllama.wasm' },
+    { default: `${origin}/vendor/wllama.wasm` },
     {
       allowOffline: true,
       suppressNativeLog: true,
@@ -255,8 +270,8 @@ function runtime() {
     }
   );
   instance.setCompat(
-    { wasm: '/vendor/wllama-compat.wasm', worker: '/vendor/wllama-compat.js' },
-    'firefox_safari'
+    { wasm: `${origin}/vendor/wllama-compat.wasm`, worker: `${origin}/vendor/wllama-compat.js` },
+    'safari'
   );
   return instance;
 }
@@ -336,9 +351,13 @@ export function createPhoneEngine(modelId = DEFAULT_CPU_MODEL_ID, { nCtx = 1024 
 
       instance = runtime();
       const modelFile = new File([blob], `${spec.id}.gguf`, { type: 'application/octet-stream' });
+      const hw = globalThis.navigator?.hardwareConcurrency || 4;
+      const nThreads = globalThis.crossOriginIsolated
+        ? Math.max(2, Math.min(6, Math.floor(hw / 2)))
+        : 1;
       await instance.loadModel([modelFile], {
         n_gpu_layers: 0,
-        n_threads: 1,
+        n_threads: nThreads,
         n_ctx: nCtx,
         n_batch: 256,
         n_ubatch: 128,

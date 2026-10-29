@@ -82,5 +82,10 @@ export function patchWllama381(source, version = WLLAMA_VERSION) {
 }`;
   if (workerCode.split(oldClose).length !== 2) throw new Error('Wllama OPFS close function did not match exactly once');
   source = source.replace(declaration[0], `var OPFS_UTILS_WORKER_CODE = ${JSON.stringify(workerCode.replace(oldClose, newClose))};`);
+  // Force zero-copy heapfs mmap instead of thousands of slow JSPI async blob.slice() IPC round-trips
+  replaceOnce(
+    'var canUseAsyncFileRead = (compat) => isSupportJSPI() || compat;',
+    'var canUseAsyncFileRead = () => false;'
+  );
   return source;
 }

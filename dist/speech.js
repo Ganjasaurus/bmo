@@ -1,4 +1,11 @@
-import { visemeAtTime, buildFallbackTimeline } from './visemes.js?v=2';
+import {
+  visemeAtTime,
+  buildFallbackTimeline,
+  splitIntoSpeakableChunks,
+  sanitizeForSpeech,
+} from './visemes.js?v=12';
+
+const VISEME_LOOKAHEAD_SEC = 0.022;
 
 export const speech = {
   status: 'idle', // 'idle' | 'speaking'
@@ -58,6 +65,7 @@ const pendingSynth = new Map();
 let initPromise = null;
 let playbackToken = 0;
 let playbackQueue = Promise.resolve();
+let queuedUtterances = 0;
 let pendingBlockedSpeech = null;
 
 const UTTERANCE_DB = 'bmo-utterance-cache-v1';
@@ -226,7 +234,7 @@ function encodeWavBlob(pcmFloat32, sampleRate = 16000) {
 
 function ensureWorker() {
   if (piperWorker) return piperWorker;
-  piperWorker = new Worker(new URL('./piper-worker.js?v=2', import.meta.url), { type: 'module' });
+  piperWorker = new Worker(new URL('./piper-worker.js?v=12', import.meta.url), { type: 'module' });
   piperWorker.onmessage = ({ data }) => {
     if (!data) return;
     if (data.type === 'status') {
@@ -385,6 +393,7 @@ function stopActiveSync() {
 
 export function stopSpeech() {
   playbackToken++;
+  queuedUtterances = 0;
   pendingBlockedSpeech = null;
   playbackQueue = Promise.resolve();
   stopActiveSync();
@@ -464,7 +473,7 @@ function playViaHtmlAudioElement(pcmFloat32, sampleRate, timeline, duration, tok
         cleanup(true);
         return;
       }
-      emitViseme(visemeAtTime(timeline, elapsed));
+      emitViseme(visemeAtTime(timeline, Math.min(duration, elapsed + VISEME_LOOKAHEAD_SEC)));
     }, 12);
 
     audioEl.play().then(
@@ -485,7 +494,7 @@ async function playSynthesizedResult(synthResult, sentenceText, token) {
 
   update({
     status: 'speaking',
-    currentSentence: sentenceText,
+    ...(sentenceText != null ? { currentSentence: sentenceText } : {}),
     lastTimelineCount: timeline.length,
     lastAudioDuration: Number(duration.toFixed(3)),
   });
@@ -546,7 +555,7 @@ async function playSynthesizedResult(synthResult, sentenceText, token) {
         emitViseme('Neutral');
         return;
       }
-      const v = visemeAtTime(timeline, elapsed);
+      const v = visemeAtTime(timeline, Math.min(duration, elapsed + VISEME_LOOKAHEAD_SEC));
       emitViseme(v);
       if (typeof requestAnimationFrame === 'function') {
         activeRaf = requestAnimationFrame(syncMouth);
@@ -561,7 +570,7 @@ async function playSynthesizedResult(synthResult, sentenceText, token) {
         finish();
         return;
       }
-      emitViseme(visemeAtTime(timeline, elapsed));
+      emitViseme(visemeAtTime(timeline, Math.min(duration, elapsed + VISEME_LOOKAHEAD_SEC)));
     }, 10);
 
     try {
@@ -573,13 +582,14 @@ async function playSynthesizedResult(synthResult, sentenceText, token) {
   });
 }
 
-function queueSingleSentence(clean, lengthScale, fullCaptionText) {
+function queueSingleSentence(clean, lengthScale, captionText) {
   const token = playbackToken;
+  queuedUtterances++;
 
   if (speech.status !== 'speaking') {
     update({
       status: 'speaking',
-      currentSentence: fullCaptionText || clean,
+      ...(captionText != null ? { currentSentence: captionText } : {}),
     });
   }
 
@@ -598,14 +608,17 @@ function queueSingleSentence(clean, lengthScale, fullCaptionText) {
     if (token !== playbackToken) return false;
     const result = await synthPromise;
     if (token !== playbackToken) return false;
-    await playSynthesizedResult(result, fullCaptionText || clean, token);
+    await playSynthesizedResult(result, captionText, token);
     return true;
   };
 
   const next = playbackQueue.then(job, job).finally(() => {
-    if (playbackQueue === next && token === playbackToken) {
-      emitViseme('Neutral');
-      update({ status: 'idle', currentSentence: '' });
+    if (token === playbackToken) {
+      queuedUtterances = Math.max(0, queuedUtterances - 1);
+      if (queuedUtterances === 0 && playbackQueue === next) {
+        emitViseme('Neutral');
+        update({ status: 'idle', currentSentence: '' });
+      }
     }
   });
 
@@ -615,25 +628,24 @@ function queueSingleSentence(clean, lengthScale, fullCaptionText) {
 
 /**
  * Queues text for BMO to speak with Piper ONNX + viseme mouth synchronization.
- * Automatically splits multi-sentence text into pipelined clauses so the first
- * sentence starts speaking in ~150ms while subsequent sentences synthesize in parallel!
+ * Automatically splits multi-sentence / multi-line lyric text into pipelined clauses so
+ * the first sentence starts speaking immediately while subsequent sentences synthesize in parallel!
  */
-export function speakSentence(text, { lengthScale = speech.lengthScale } = {}) {
-  const clean = String(text || '').trim();
-  if (!clean) return Promise.resolve(false);
+export function speakSentence(text, { lengthScale = speech.lengthScale, preserveCaption = false } = {}) {
+  const raw = String(text || '').trim();
+  if (!raw) return Promise.resolve(false);
 
-  const clauses = clean
-    .split(/(?<=[.!?])\s+/)
-    .map((s) => s.trim())
-    .filter(Boolean);
-
-  if (clauses.length <= 1) {
-    return queueSingleSentence(clean, lengthScale, clean);
+  const chunks = splitIntoSpeakableChunks(raw);
+  if (!chunks.length) {
+    const single = sanitizeForSpeech(raw);
+    if (!single) return Promise.resolve(false);
+    return queueSingleSentence(single, lengthScale, preserveCaption ? null : raw);
   }
 
+  const caption = preserveCaption ? null : raw;
   let lastPromise = Promise.resolve(false);
-  for (const clause of clauses) {
-    lastPromise = queueSingleSentence(clause, lengthScale, clean);
+  for (const chunk of chunks) {
+    lastPromise = queueSingleSentence(chunk, lengthScale, caption);
   }
   return lastPromise;
 }

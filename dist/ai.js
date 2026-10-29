@@ -1,13 +1,35 @@
-import { normalizeAIError, waitForAI, cleanOutput, verifyAIReady } from './ai-support.js?v=1';
-import { describeSetupFailure } from './setup-support.js?v=1';
-import { extractSentences } from './visemes.js?v=1';
+import { normalizeAIError, waitForAI, cleanOutput, verifyAIReady } from './ai-support.js?v=12';
+import { describeSetupFailure } from './setup-support.js?v=12';
+import { extractSentences } from './visemes.js?v=12';
 
 export { normalizeAIError, cleanOutput };
 
 export const MODEL_CATALOG = [
   {
+    id: 'lfm2.5-350m-qad-cpu',
+    label: 'LiquidAI LFM2.5 350M Witty (209 MB · Best Wit, Lyrics & Jokes)',
+    shortLabel: 'LFM2.5 350M Witty',
+    params: '0.35B',
+    quant: 'QAD-Q4_0 GGUF',
+    backend: 'cpu',
+    runtime: 'wllama (LiquidAI Hybrid WASM)',
+    sizeMB: 209,
+    phoneReady: true,
+  },
+  {
+    id: 'lfm2.5-350m-heretic-cpu',
+    label: 'LFM2.5 350M Heretic (219 MB · Unfiltered Creative & Cheeky)',
+    shortLabel: 'LFM2.5 Heretic',
+    params: '0.35B',
+    quant: 'Q4_K_M imatrix GGUF',
+    backend: 'cpu',
+    runtime: 'wllama (LiquidAI Hybrid WASM)',
+    sizeMB: 219,
+    phoneReady: true,
+  },
+  {
     id: 'smollm2-135m-q4km-cpu',
-    label: 'SmolLM2 135M (100 MB · Ultra-Fast English Chat/Stories)',
+    label: 'SmolLM2 135M Turbo (100 MB · Ultra-Tiny Instant English)',
     shortLabel: 'SmolLM2 135M',
     params: '0.135B',
     quant: 'Q4_K_M GGUF',
@@ -17,19 +39,8 @@ export const MODEL_CATALOG = [
     phoneReady: true,
   },
   {
-    id: 'smollm2-135m-q2k-cpu',
-    label: 'SmolLM2 135M Nano (84 MB · Featherweight English)',
-    shortLabel: 'SmolLM2 Nano',
-    params: '0.135B',
-    quant: 'Q2_K GGUF',
-    backend: 'cpu',
-    runtime: 'wllama (llama.cpp WASM CPU)',
-    sizeMB: 84,
-    phoneReady: true,
-  },
-  {
     id: 'smollm2-360m-q4km-cpu',
-    label: 'SmolLM2 360M Storyteller (258 MB · Deeper Stories & Lyrics)',
+    label: 'SmolLM2 360M Storyteller (258 MB · Fast Bedtime Stories)',
     shortLabel: 'SmolLM2 360M',
     params: '0.36B',
     quant: 'Q4_K_M GGUF',
@@ -39,49 +50,64 @@ export const MODEL_CATALOG = [
     phoneReady: true,
   },
   {
-    id: 'qwen2.5-0.5b-q4km-cpu',
-    label: 'Qwen 2.5 0.5B (469 MB · General & Multilingual)',
-    shortLabel: 'Qwen 2.5 0.5B',
+    id: 'dolphin3-0.5b-q4km-cpu',
+    label: 'Dolphin 3.0 0.5B Persona (379 MB · Custom Roleplay Fine-Tune)',
+    shortLabel: 'Dolphin 3.0 0.5B',
     params: '0.49B',
     quant: 'Q4_K_M GGUF',
     backend: 'cpu',
     runtime: 'wllama (llama.cpp WASM CPU)',
-    sizeMB: 469,
+    sizeMB: 379,
     phoneReady: true,
   },
   {
-    id: 'qwen2.5-0.5b-q2k-cpu',
-    label: 'Qwen 2.5 0.5B Lite (396 MB · Low-RAM)',
-    shortLabel: 'Qwen 0.5B Lite',
-    params: '0.49B',
+    id: 'smollm2-135m-q2k-cpu',
+    label: 'SmolLM2 135M Nano (84 MB · Featherweight Fallback)',
+    shortLabel: 'SmolLM2 Nano',
+    params: '0.135B',
     quant: 'Q2_K GGUF',
     backend: 'cpu',
     runtime: 'wllama (llama.cpp WASM CPU)',
-    sizeMB: 396,
+    sizeMB: 84,
     phoneReady: true,
   },
   {
+    id: 'smollm2-360m-webgpu',
+    label: 'SmolLM2 360M GPU (190 MB · Instant WebGPU Speed)',
+    shortLabel: 'SmolLM2 360M GPU',
+    params: '0.36B',
+    quant: 'q4f16_1 MLC',
+    backend: 'webgpu',
+    runtime: '@mlc-ai/web-llm (WebGPU)',
+    sizeMB: 190,
+    phoneReady: false,
+    mlcId16: 'SmolLM2-360M-Instruct-q4f16_1-MLC',
+    mlcId32: 'SmolLM2-360M-Instruct-q4f32_1-MLC',
+  },
+  {
     id: 'qwen3-0.6b-webgpu',
-    label: 'Qwen 3 0.6B (WebGPU Accelerated)',
+    label: 'Qwen 3 0.6B GPU (380 MB · WebGPU Accelerated)',
     shortLabel: 'Qwen 3 0.6B GPU',
     params: '0.60B',
     quant: 'q4f16_1 MLC',
     backend: 'webgpu',
     runtime: '@mlc-ai/web-llm (WebGPU)',
-    sizeMB: 420,
+    sizeMB: 380,
     phoneReady: false,
     webllmSize: '0.6B',
+    mlcId16: 'Qwen3-0.6B-q4f16_1-MLC',
+    mlcId32: 'Qwen3-0.6B-q4f32_1-MLC',
   },
 ];
 
-const PREF_KEY = 'bmo-local-ai-v2';
+const PREF_KEY = 'bmo-local-ai-v3';
 
 export const ai = {
   status: 'idle',
   phase: 'idle',
-  text: 'Starting SmolLM2 135M…',
+  text: 'Starting LFM2.5 350M Witty…',
   progress: 0,
-  modelId: 'smollm2-135m-q4km-cpu',
+  modelId: 'lfm2.5-350m-qad-cpu',
   modelSpec: MODEL_CATALOG[0],
   nCtx: 1024,
   engine: null,
@@ -262,7 +288,7 @@ export function enableAI(modelId = ai.modelId, { nCtx = ai.nCtx } = {}) {
         if (!globalThis.WebAssembly || !globalThis.Worker) {
           throw new Error('WebAssembly or Web Workers are unavailable in this browser.');
         }
-        const { createPhoneEngine } = await waitForAI(import('./vendor/cpu.js?v=11'), {
+        const { createPhoneEngine } = await waitForAI(import('./vendor/cpu.js?v=12'), {
           signal,
           timeoutMs: 45000,
           message: 'The wllama CPU runtime could not load.',
@@ -301,8 +327,10 @@ export function enableAI(modelId = ai.modelId, { nCtx = ai.nCtx } = {}) {
         );
         if (loadInfo?.loadedFromCache) loadedFromCache = true;
       } else {
-        const precision = adapter.features.has('shader-f16') ? '16' : '32';
-        const mlcModelId = `Qwen3-${activeSpec.webllmSize}-q4f${precision}_1-MLC`;
+        const hasF16 = adapter.features.has('shader-f16');
+        const mlcModelId = hasF16
+          ? activeSpec.mlcId16 || `Qwen3-${activeSpec.webllmSize}-q4f16_1-MLC`
+          : activeSpec.mlcId32 || `Qwen3-${activeSpec.webllmSize}-q4f32_1-MLC`;
         const { CreateWebWorkerMLCEngine } = await waitForAI(import('./vendor/engine.js?v=1'), {
           signal,
           timeoutMs: 45000,
@@ -384,7 +412,7 @@ export function enableAI(modelId = ai.modelId, { nCtx = ai.nCtx } = {}) {
 
 export function autoBootAI() {
   const pref = getSavedPreferences();
-  const targetModelId = pref?.modelId || 'smollm2-135m-q4km-cpu';
+  const targetModelId = pref?.modelId || 'lfm2.5-350m-qad-cpu';
   const targetCtx = pref?.nCtx || 1024;
   return enableAI(targetModelId, { nCtx: targetCtx });
 }
@@ -418,6 +446,7 @@ export function complete(
     const started = Date.now();
     let rawOutput = '';
     let sentenceBuffer = '';
+    let emittedChunks = 0;
     let first = true;
     let tokenCount = 0;
 
@@ -458,11 +487,14 @@ export function complete(
           // Only accumulate into sentenceBuffer once outside <think> tags
           if (!/<think>(?![\s\S]*<\/think>)/i.test(rawOutput)) {
             sentenceBuffer += delta.replace(/<\/?think>/gi, '');
-            const extracted = extractSentences(sentenceBuffer);
+            const extracted = extractSentences(sentenceBuffer, { firstChunk: emittedChunks === 0 });
             sentenceBuffer = extracted.buffer;
             for (const s of extracted.sentences) {
               const cleanSentence = cleanOutput(s);
-              if (cleanSentence) onSentence?.(cleanSentence);
+              if (cleanSentence) {
+                emittedChunks++;
+                onSentence?.(cleanSentence);
+              }
             }
           }
         }
@@ -472,9 +504,13 @@ export function complete(
         error.partial = cleanOutput(rawOutput);
         throw error;
       }
-      const trailing = cleanOutput(sentenceBuffer);
-      if (trailing) {
-        onSentence?.(trailing);
+      const flushed = extractSentences(sentenceBuffer, { flush: true });
+      for (const s of flushed.sentences) {
+        const cleanSentence = cleanOutput(s);
+        if (cleanSentence) {
+          emittedChunks++;
+          onSentence?.(cleanSentence);
+        }
       }
       const finalReply = cleanOutput(rawOutput).trim();
       if (!finalReply) throw new Error('Model returned an empty reply.');

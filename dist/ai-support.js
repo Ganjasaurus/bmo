@@ -43,6 +43,9 @@ export function cleanOutput(value) {
     .replace(/<think>[\s\S]*$/g, '')
     .replace(/^\s*<\/think>\s*/, '')
     .replace(/^(?:BMO|Assistant|AI)\s*:\s*/i, '')
+    .replace(/\*\*([^*\n]+)\*\*/g, '$1')
+    .replace(/\*([^*\n]+)\*/g, '$1')
+    .replace(/\n+\s*\((?:Note|Word count|\d+\s*words?|For the love of)[^)]*\)\s*$/i, '')
     .trim();
 }
 

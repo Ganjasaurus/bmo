@@ -1,4 +1,4 @@
-import { ai, MODEL_CATALOG, subscribeAI, autoBootAI, enableAI, complete } from './ai.js?v=11';
+import { ai, MODEL_CATALOG, subscribeAI, autoBootAI, enableAI, complete } from './ai.js?v=12';
 import {
   speech,
   subscribeSpeech,
@@ -8,10 +8,10 @@ import {
   stopSpeech,
   unlockAudio,
   flushPendingSpeech,
-} from './speech.js?v=11';
-import { BmoFaceController, EYE_THEMES } from './face.js?v=11';
-import { FACE_NAMES } from './visemes.js?v=11';
-import { ConversationMemory, BMO_PERSONALITY, MAX_HISTORY } from './memory.js?v=11';
+} from './speech.js?v=12';
+import { BmoFaceController, EYE_THEMES } from './face.js?v=12';
+import { FACE_NAMES } from './visemes.js?v=12';
+import { ConversationMemory, BMO_PERSONALITY, MAX_HISTORY } from './memory.js?v=12';
 import {
   mic,
   subscribeMic,
@@ -23,14 +23,14 @@ import {
   stopListening,
   toggleListening,
   setPausedForSpeech,
-} from './listening.js?v=11';
+} from './listening.js?v=12';
 import {
   IMAGE_PRESETS,
   detectImageRequest,
   generateLocalArtwork,
   loadSavedGallery,
   saveToGallery,
-} from './image-gen.js?v=11';
+} from './image-gen.js?v=12';
 
 const memory = new ConversationMemory(BMO_PERSONALITY, MAX_HISTORY, { persist: true });
 let face = null;
@@ -136,7 +136,7 @@ function refreshStatusUI() {
     face?.setMood('talking');
     els.status.textContent = speech.autoplayBlocked ? 'Tap BMO to unmute voice' : 'Talking';
     els.statusDot.dataset.state = 'talking';
-    if (speech.currentSentence) {
+    if (speech.currentSentence && !ai.busy) {
       els.caption.textContent = speech.currentSentence;
     }
     return;
@@ -326,16 +326,16 @@ export async function submitUserPrompt(rawText) {
   try {
     let spokenAny = false;
     const reply = await complete(messages, {
-      temperature: 0.7,
-      max_tokens: 110,
+      temperature: 0.72,
+      max_tokens: 115,
       onToken: (partial) => {
-        if (els.caption && speech.status !== 'speaking') {
+        if (els.caption && partial) {
           els.caption.textContent = partial;
         }
       },
       onSentence: (sentence) => {
         spokenAny = true;
-        void speakSentence(sentence);
+        void speakSentence(sentence, { preserveCaption: true });
       },
     });
 
@@ -345,7 +345,7 @@ export async function submitUserPrompt(rawText) {
       els.caption.textContent = reply;
     }
     if (!spokenAny && reply) {
-      await speakSentence(reply);
+      await speakSentence(reply, { preserveCaption: true });
     }
   } catch (err) {
     if (err?.name !== 'AbortError') {
@@ -398,7 +398,7 @@ async function bootModelsAndGreet() {
   if (aiOk && !greetedOnAiReady) {
     greetedOnAiReady = true;
     if (speech.status === 'idle' && !mic.vadActive && !mic.transcribing) {
-      const readyLine = 'Yay! My SmolLM brain is ready! Ask me for a story, song, or joke!';
+      const readyLine = 'Yay! My witty brain is ready! Ask me for a story, song, or joke!';
       if (els.caption) els.caption.textContent = readyLine;
       void speakSentence(readyLine);
     }
@@ -445,7 +445,8 @@ async function initApp() {
 
   if (els.brainSelect) {
     els.brainSelect.innerHTML = '';
-    for (const m of MODEL_CATALOG.filter((item) => item.backend === 'cpu')) {
+    const hasWebGPU = Boolean(globalThis.navigator?.gpu);
+    for (const m of MODEL_CATALOG.filter((item) => item.backend === 'cpu' || hasWebGPU)) {
       const opt = document.createElement('option');
       opt.value = m.id;
       opt.textContent = `${m.shortLabel} (${m.sizeMB} MB)`;
