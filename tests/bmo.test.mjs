@@ -15,6 +15,7 @@ import { ConversationMemory, BMO_PERSONALITY } from '../dist/memory.js';
 import { downsampleTo16k } from '../dist/listening.js';
 import { VISEME_SHAPES } from '../dist/face.js';
 import { detectImageRequest, parsePromptScene, IMAGE_STYLES } from '../dist/image-gen.js';
+import { MODEL_CATALOG, ai } from '../dist/ai.js';
 
 const ROOT = process.cwd();
 
@@ -170,4 +171,16 @@ test('Local Image Generator detects drawing requests and parses scene descriptor
   assert.equal(scene.subject, 'castle');
   assert.equal(scene.hasStars, true);
   assert.ok(IMAGE_STYLES.length >= 5);
+});
+
+test('Ultra-tiny SmolLM2 135M English brain is default and prebaked voice greetings exist', () => {
+  assert.equal(ai.modelId, 'smollm2-135m-q4km-cpu');
+  assert.equal(MODEL_CATALOG[0].id, 'smollm2-135m-q4km-cpu');
+  assert.ok(MODEL_CATALOG[0].sizeMB <= 105, 'Default brain should be <= 105 MB');
+
+  const prebakedPath = path.join(ROOT, 'dist', 'assets', 'voice', 'prebaked', 'manifest.json');
+  assert.ok(fs.existsSync(prebakedPath), 'Missing prebaked voice greeting manifest');
+  const prebaked = JSON.parse(fs.readFileSync(prebakedPath, 'utf8'));
+  assert.ok(prebaked['Hi friend!'], 'Missing prebaked "Hi friend!" utterance');
+  assert.ok(prebaked['Hi friend!'].timeline.length >= 10);
 });

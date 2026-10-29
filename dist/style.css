@@ -162,8 +162,10 @@ body {
 .bmo-status-row {
   display: inline-flex;
   align-items: center;
+  flex-wrap: wrap;
+  justify-content: center;
   gap: 8px;
-  padding: 5px 14px;
+  padding: 5px 12px;
   border-radius: 999px;
   background: rgba(11, 28, 26, 0.65);
   border: 1px solid rgba(184, 227, 218, 0.22);
@@ -171,6 +173,23 @@ body {
   font-size: 0.8rem;
   font-weight: 600;
   color: var(--bmo-muted);
+}
+
+.bmo-brain-select {
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(86, 227, 159, 0.35);
+  background: rgba(18, 52, 46, 0.92);
+  color: var(--bmo-text);
+  font-size: 0.72rem;
+  font-weight: 700;
+  cursor: pointer;
+  outline: none;
+}
+
+.bmo-brain-select:hover,
+.bmo-brain-select:focus {
+  border-color: var(--bmo-gold);
 }
 
 .bmo-status-dot {

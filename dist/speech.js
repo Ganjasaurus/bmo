@@ -294,7 +294,53 @@ export function initVoice() {
   return initPromise;
 }
 
+let prebakedPromise = null;
+
+function getPrebakedManifest() {
+  if (prebakedPromise) return prebakedPromise;
+  prebakedPromise = fetch(new URL('./assets/voice/prebaked/manifest.json', import.meta.url))
+    .then((r) => (r.ok ? r.json() : {}))
+    .catch(() => ({}));
+  return prebakedPromise;
+}
+
+async function fetchPrebakedUtterance(text) {
+  try {
+    const manifest = await getPrebakedManifest();
+    const entry = manifest?.[text];
+    if (!entry?.wav) return null;
+    const res = await fetch(new URL(entry.wav, import.meta.url));
+    if (!res.ok) return null;
+    const buf = await res.arrayBuffer();
+    if (buf.byteLength <= 44) return null;
+    const view = new DataView(buf);
+    const numSamples = Math.floor((buf.byteLength - 44) / 2);
+    const pcmFloat32 = new Float32Array(numSamples);
+    let offset = 44;
+    for (let i = 0; i < numSamples; i++) {
+      const s = view.getInt16(offset, true);
+      pcmFloat32[i] = s < 0 ? s / 0x8000 : s / 0x7fff;
+      offset += 2;
+    }
+    return {
+      pcmFloat32,
+      sampleRate: entry.sampleRate || 16000,
+      timeline: entry.timeline || [],
+      duration: entry.duration || numSamples / (entry.sampleRate || 16000),
+    };
+  } catch {
+    return null;
+  }
+}
+
 export async function synthesizePiper(text, lengthScale = speech.lengthScale) {
+  if (Math.abs(lengthScale - 1.0) < 0.05) {
+    const prebaked = await fetchPrebakedUtterance(text);
+    if (prebaked?.pcmFloat32?.length) {
+      return prebaked;
+    }
+  }
+
   const cacheKey = `${lengthScale}:${text}`;
   const cached = await getCachedUtterance(cacheKey);
   if (cached?.pcmFloat32?.length) {

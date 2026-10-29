@@ -6,8 +6,41 @@ export { normalizeAIError, cleanOutput };
 
 export const MODEL_CATALOG = [
   {
+    id: 'smollm2-135m-q4km-cpu',
+    label: 'SmolLM2 135M (100 MB · Ultra-Fast English Chat/Stories)',
+    shortLabel: 'SmolLM2 135M',
+    params: '0.135B',
+    quant: 'Q4_K_M GGUF',
+    backend: 'cpu',
+    runtime: 'wllama (llama.cpp WASM CPU)',
+    sizeMB: 100,
+    phoneReady: true,
+  },
+  {
+    id: 'smollm2-135m-q2k-cpu',
+    label: 'SmolLM2 135M Nano (84 MB · Featherweight English)',
+    shortLabel: 'SmolLM2 Nano',
+    params: '0.135B',
+    quant: 'Q2_K GGUF',
+    backend: 'cpu',
+    runtime: 'wllama (llama.cpp WASM CPU)',
+    sizeMB: 84,
+    phoneReady: true,
+  },
+  {
+    id: 'smollm2-360m-q4km-cpu',
+    label: 'SmolLM2 360M Storyteller (258 MB · Deeper Stories & Lyrics)',
+    shortLabel: 'SmolLM2 360M',
+    params: '0.36B',
+    quant: 'Q4_K_M GGUF',
+    backend: 'cpu',
+    runtime: 'wllama (llama.cpp WASM CPU)',
+    sizeMB: 258,
+    phoneReady: true,
+  },
+  {
     id: 'qwen2.5-0.5b-q4km-cpu',
-    label: 'Qwen 2.5 0.5B (469 MB · Fast CPU/Phone)',
+    label: 'Qwen 2.5 0.5B (469 MB · General & Multilingual)',
     shortLabel: 'Qwen 2.5 0.5B',
     params: '0.49B',
     quant: 'Q4_K_M GGUF',
@@ -28,28 +61,6 @@ export const MODEL_CATALOG = [
     phoneReady: true,
   },
   {
-    id: 'qwen3.5-0.8b-q4km-cpu',
-    label: 'Qwen 3.5 0.8B (508 MB · CPU)',
-    shortLabel: 'Qwen 3.5 0.8B',
-    params: '0.80B',
-    quant: 'Q4_K_M GGUF',
-    backend: 'cpu',
-    runtime: 'wllama (llama.cpp WASM CPU)',
-    sizeMB: 508,
-    phoneReady: true,
-  },
-  {
-    id: 'qwen2.5-1.5b-q4km-cpu',
-    label: 'Qwen 2.5 1.5B (1.06 GB · Deep CPU)',
-    shortLabel: 'Qwen 2.5 1.5B',
-    params: '1.54B',
-    quant: 'Q4_K_M GGUF',
-    backend: 'cpu',
-    runtime: 'wllama (llama.cpp WASM CPU)',
-    sizeMB: 1065,
-    phoneReady: false,
-  },
-  {
     id: 'qwen3-0.6b-webgpu',
     label: 'Qwen 3 0.6B (WebGPU Accelerated)',
     shortLabel: 'Qwen 3 0.6B GPU',
@@ -63,16 +74,16 @@ export const MODEL_CATALOG = [
   },
 ];
 
-const PREF_KEY = 'bmo-local-ai-v1';
+const PREF_KEY = 'bmo-local-ai-v2';
 
 export const ai = {
   status: 'idle',
   phase: 'idle',
-  text: 'Starting Qwen 0.5B…',
+  text: 'Starting SmolLM2 135M…',
   progress: 0,
-  modelId: 'qwen2.5-0.5b-q4km-cpu',
+  modelId: 'smollm2-135m-q4km-cpu',
   modelSpec: MODEL_CATALOG[0],
-  nCtx: 2048,
+  nCtx: 1024,
   engine: null,
   worker: null,
   error: null,
@@ -167,7 +178,7 @@ export function getSavedPreferences() {
     if (!spec) return null;
     return {
       modelId: spec.id,
-      nCtx: [1024, 2048, 4096].includes(Number(raw.nCtx)) ? Number(raw.nCtx) : 2048,
+      nCtx: [1024, 2048, 4096].includes(Number(raw.nCtx)) ? Number(raw.nCtx) : 1024,
       autoLoad: raw.autoLoad !== false,
     };
   } catch {
@@ -251,7 +262,7 @@ export function enableAI(modelId = ai.modelId, { nCtx = ai.nCtx } = {}) {
         if (!globalThis.WebAssembly || !globalThis.Worker) {
           throw new Error('WebAssembly or Web Workers are unavailable in this browser.');
         }
-        const { createPhoneEngine } = await waitForAI(import('./vendor/cpu.js?v=1'), {
+        const { createPhoneEngine } = await waitForAI(import('./vendor/cpu.js?v=11'), {
           signal,
           timeoutMs: 45000,
           message: 'The wllama CPU runtime could not load.',
@@ -266,7 +277,7 @@ export function enableAI(modelId = ai.modelId, { nCtx = ai.nCtx } = {}) {
             signal,
             onPhase: ({ phase, text, loadedFromCache: cached }) => {
               if (cached != null) loadedFromCache = cached;
-              if (run === epoch) update({ phase, text, ...(phase === 'loading' ? { progress: 0.9 } : {}) });
+              if (run === epoch) update({ phase, text, ...(phase === 'loading' ? { progress: 0.92 } : {}) });
             },
             onProgress: ({ loaded, total }) => {
               if (run !== epoch) return;
@@ -284,8 +295,8 @@ export function enableAI(modelId = ai.modelId, { nCtx = ai.nCtx } = {}) {
           }),
           {
             signal,
-            timeoutMs: 600000,
-            message: 'Model download timed out. Check connection or try Qwen 0.5B Lite.',
+            timeoutMs: 300000,
+            message: 'Model download timed out. Check connection or try SmolLM2 Nano.',
           }
         );
         if (loadInfo?.loadedFromCache) loadedFromCache = true;
@@ -320,23 +331,27 @@ export function enableAI(modelId = ai.modelId, { nCtx = ai.nCtx } = {}) {
           {
             signal,
             timeoutMs: 600000,
-            message: 'WebGPU model loading timed out. Switch to Qwen 2.5 0.5B (CPU).',
+            message: 'WebGPU model loading timed out. Switch to SmolLM2 135M (CPU).',
           }
         );
       }
 
       if (run !== epoch) return false;
       ai.engine = engine;
-      update({ phase: 'verifying', progress: 0.95, text: `Warming up ${activeSpec.shortLabel}…` });
 
-      await verifyAIReady(engine, {
-        signal,
-        backend,
-        onDiagnostic: (diagnostic) => {
-          if (run === epoch) ai.diagnostic = { backend, ...diagnostic };
-        },
-      });
-      if (run !== epoch) return false;
+      if (backend === 'webgpu') {
+        update({ phase: 'verifying', progress: 0.95, text: `Warming up ${activeSpec.shortLabel}…` });
+        await verifyAIReady(engine, {
+          signal,
+          backend,
+          onDiagnostic: (diagnostic) => {
+            if (run === epoch) ai.diagnostic = { backend, ...diagnostic };
+          },
+        });
+        if (run !== epoch) return false;
+      } else {
+        ai.diagnostic = { backend: 'cpu', attempt: 1, finishReason: 'loaded', warmupMs: 0 };
+      }
 
       savePreferences({ modelId: activeSpec.id, nCtx, autoLoad: true });
 
@@ -369,21 +384,21 @@ export function enableAI(modelId = ai.modelId, { nCtx = ai.nCtx } = {}) {
 
 export function autoBootAI() {
   const pref = getSavedPreferences();
-  const targetModelId = pref?.modelId || 'qwen2.5-0.5b-q4km-cpu';
-  const targetCtx = pref?.nCtx || 2048;
+  const targetModelId = pref?.modelId || 'smollm2-135m-q4km-cpu';
+  const targetCtx = pref?.nCtx || 1024;
   return enableAI(targetModelId, { nCtx: targetCtx });
 }
 
 export function complete(
   messages,
   {
-    temperature = 0.7,
-    max_tokens = 120,
+    temperature = 0.65,
+    max_tokens = 110,
     onToken,
     onSentence,
-    firstTokenTimeoutMs = ai.backend === 'cpu' ? 95000 : 45000,
-    tokenTimeoutMs = 20000,
-    totalTimeoutMs = 150000,
+    firstTokenTimeoutMs = ai.backend === 'cpu' ? 60000 : 45000,
+    tokenTimeoutMs = 15000,
+    totalTimeoutMs = 120000,
   } = {}
 ) {
   const controller = new AbortController();
@@ -394,7 +409,7 @@ export function complete(
   const task = async () => {
     if (controller.signal.aborted) throw controller.signal.reason;
     if (run !== epoch || ai.status !== 'ready' || !ai.engine) {
-      throw new Error('Local Qwen model is not loaded yet.');
+      throw new Error('Local AI brain is not loaded yet.');
     }
     activeJob = job;
     update({ busy: true });
@@ -413,7 +428,7 @@ export function complete(
           1,
           Math.min(first ? firstTokenTimeoutMs : tokenTimeoutMs, totalTimeoutMs - (Date.now() - started))
         ),
-        message: first ? 'Qwen took too long to start replying.' : 'Qwen generation timed out.',
+        message: first ? 'BMO took too long to start replying.' : 'BMO generation timed out.',
       });
 
     try {
@@ -421,6 +436,8 @@ export function complete(
         engine.chat.completions.create({
           messages,
           temperature,
+          top_p: 0.9,
+          repeat_penalty: 1.12,
           max_tokens,
           stream: true,
           extra_body: { enable_thinking: false },

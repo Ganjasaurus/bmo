@@ -1,4 +1,4 @@
-import { ai, subscribeAI, autoBootAI, complete } from './ai.js?v=10';
+import { ai, MODEL_CATALOG, subscribeAI, autoBootAI, enableAI, complete } from './ai.js?v=11';
 import {
   speech,
   subscribeSpeech,
@@ -8,10 +8,10 @@ import {
   stopSpeech,
   unlockAudio,
   flushPendingSpeech,
-} from './speech.js?v=10';
-import { BmoFaceController, EYE_THEMES } from './face.js?v=10';
-import { FACE_NAMES } from './visemes.js?v=10';
-import { ConversationMemory, BMO_PERSONALITY, MAX_HISTORY } from './memory.js?v=10';
+} from './speech.js?v=11';
+import { BmoFaceController, EYE_THEMES } from './face.js?v=11';
+import { FACE_NAMES } from './visemes.js?v=11';
+import { ConversationMemory, BMO_PERSONALITY, MAX_HISTORY } from './memory.js?v=11';
 import {
   mic,
   subscribeMic,
@@ -23,14 +23,14 @@ import {
   stopListening,
   toggleListening,
   setPausedForSpeech,
-} from './listening.js?v=10';
+} from './listening.js?v=11';
 import {
   IMAGE_PRESETS,
   detectImageRequest,
   generateLocalArtwork,
   loadSavedGallery,
   saveToGallery,
-} from './image-gen.js?v=10';
+} from './image-gen.js?v=11';
 
 const memory = new ConversationMemory(BMO_PERSONALITY, MAX_HISTORY, { persist: true });
 let face = null;
@@ -95,23 +95,24 @@ function renderHistoryStrip() {
 function buildWarmupReply(promptText) {
   const lower = String(promptText || '').toLowerCase();
   const pct = Math.max(1, Math.min(99, Math.round((ai.progress || 0.1) * 100)));
+  const brainName = ai.modelSpec?.shortLabel || 'SmolLM';
 
   if (/\b(hi|hello|hey|yo|sup|howdy|greetings)\b/.test(lower)) {
-    return `Hello friend! I am BMO! I can hear you loud and clear! My Qwen brain is ${pct} percent loaded!`;
+    return `Hello friend! I am BMO! I can hear you loud and clear! My ${brainName} brain is ${pct} percent loaded!`;
   }
   if (/\b(how are you|how's it going|how do you feel)\b/.test(lower)) {
-    return `I am feeling super mathematical today! My voice is working great, and my Qwen brain is ${pct} percent ready!`;
+    return `I am feeling super happy today! My voice is working great, and my ${brainName} brain is ${pct} percent ready!`;
   }
   if (/\b(who are you|what is your name|your name)\b/.test(lower)) {
-    return `I am BMO, your living video game console and best friend! My Qwen brain is ${pct} percent loaded!`;
+    return `I am BMO, your living video game console and best friend! My ${brainName} brain is ${pct} percent loaded!`;
   }
   if (/\b(joke|funny|laugh)\b/.test(lower)) {
-    return `Why did the robot eat a lightbulb? Because it wanted a light snack! Hehe! My Qwen brain is at ${pct} percent!`;
+    return `Why did the robot eat a lightbulb? Because it wanted a light snack! Hehe! My ${brainName} brain is at ${pct} percent!`;
   }
-  if (/\b(sing|song|music)\b/.test(lower)) {
-    return `Beep boop beep! BMO loves singing little computer songs with you! My Qwen brain is ${pct} percent ready!`;
+  if (/\b(sing|song|music|lyric|story)\b/.test(lower)) {
+    return `Beep boop beep! BMO loves making up songs and stories with you! My ${brainName} brain is ${pct} percent ready!`;
   }
-  return `I heard you say: "${promptText}"! My Qwen brain is ${pct} percent finished loading, keep talking to me friend!`;
+  return `I heard you say: "${promptText}"! My ${brainName} brain is ${pct} percent finished loading, keep talking to me friend!`;
 }
 
 function refreshStatusUI() {
@@ -382,29 +383,29 @@ export function toggleImageStudio(forceOpen, { skipAutoGenerate = false } = {}) 
 }
 
 async function bootModelsAndGreet() {
-  // 1. Prioritize BMO's 63 MB Piper ONNX voice + Microphone permission first so BMO speaks within seconds!
+  // 1. Speak BMO's prebaked Piper ONNX greeting immediately (<60ms) with full 12-viseme lip-sync!
   void requestMicPermission();
-  const voiceOk = await initVoice();
-
-  if (voiceOk && !greetedOnVoiceReady) {
+  if (!greetedOnVoiceReady) {
     greetedOnVoiceReady = true;
     const greeting = 'Hi friend! I am BMO! Say hello, or tap the keyboard button to chat!';
     if (els.caption) els.caption.textContent = greeting;
     void speakSentence(greeting);
   }
 
-  // 2. Boot Local Moonshine ONNX Speech-to-Text ear and Qwen 2.5 0.5B LLM brain
-  void initSTT();
-  const aiOk = await autoBootAI();
+  // 2. Load ultra-tiny SmolLM2 135M brain (100 MB parallel Range) and full Piper ONNX voice in parallel!
+  const [aiOk] = await Promise.all([autoBootAI(), initVoice()]);
 
   if (aiOk && !greetedOnAiReady) {
     greetedOnAiReady = true;
     if (speech.status === 'idle' && !mic.vadActive && !mic.transcribing) {
-      const readyLine = 'Yay! My Qwen brain is ready! Ask me anything!';
+      const readyLine = 'Yay! My SmolLM brain is ready! Ask me for a story, song, or joke!';
       if (els.caption) els.caption.textContent = readyLine;
       void speakSentence(readyLine);
     }
   }
+
+  // 3. Warm up local Moonshine ONNX STT ear in background after primary brain & voice are ready
+  void initSTT();
 }
 
 async function initApp() {
@@ -414,6 +415,7 @@ async function initApp() {
   els.visemeStrip = document.getElementById('bmo-viseme-strip');
   els.status = document.getElementById('bmo-status');
   els.statusDot = document.getElementById('bmo-status-dot');
+  els.brainSelect = document.getElementById('bmo-brain-select');
   els.progressWrap = document.getElementById('bmo-progress-wrap');
   els.progressBar = document.getElementById('bmo-progress-bar');
   els.caption = document.getElementById('bmo-caption');
@@ -440,6 +442,21 @@ async function initApp() {
   // Render saved conversation history & image gallery immediately (<2ms)
   renderHistoryStrip();
   renderGalleryStrip();
+
+  if (els.brainSelect) {
+    els.brainSelect.innerHTML = '';
+    for (const m of MODEL_CATALOG.filter((item) => item.backend === 'cpu')) {
+      const opt = document.createElement('option');
+      opt.value = m.id;
+      opt.textContent = `${m.shortLabel} (${m.sizeMB} MB)`;
+      els.brainSelect.appendChild(opt);
+    }
+    els.brainSelect.value = ai.modelId;
+    els.brainSelect.addEventListener('change', () => {
+      const chosen = els.brainSelect.value;
+      void enableAI(chosen, { nCtx: 1024 });
+    });
+  }
 
   if (els.imagePresetChips) {
     els.imagePresetChips.innerHTML = '';
@@ -475,6 +492,9 @@ async function initApp() {
   });
 
   subscribeAI(() => {
+    if (els.brainSelect && els.brainSelect.value !== ai.modelId) {
+      els.brainSelect.value = ai.modelId;
+    }
     refreshStatusUI();
   });
 
