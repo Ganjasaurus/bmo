@@ -623,3 +623,57 @@ body {
     font-size: 0.92rem;
   }
 }
+
+/* Xbox One (console kit adds html.console-kit): no model or microphone there, so no talk controls; TV-size text. */
+html.console-kit .bmo-brain-select,
+html.console-kit .bmo-progress-wrap,
+html.console-kit .bmo-mic-btn,
+html.console-kit #btn-keyboard,
+html.console-kit .bmo-keyboard-box {
+  display: none !important;
+}
+
+html.console-kit .bmo-status-row {
+  padding: 8px 18px;
+  font-size: 20px;
+}
+
+html.console-kit .bmo-caption {
+  font-size: 26px;
+  line-height: 1.4;
+}
+
+html.console-kit .bmo-viseme-badge,
+html.console-kit .bmo-viseme-pill,
+html.console-kit .bmo-history-strip,
+html.console-kit .bmo-history-header,
+html.console-kit .bmo-history-clear,
+html.console-kit .bmo-studio-title,
+html.console-kit .bmo-studio-step,
+html.console-kit .bmo-preset-chip,
+html.console-kit .bmo-style-select {
+  font-size: 16px;
+}
+
+html.console-kit .bmo-prompt-input,
+html.console-kit .bmo-send-btn,
+html.console-kit .bmo-secondary-btn {
+  font-size: 18px;
+}
+
+html.console-kit .bmo-icon-toggle {
+  width: 56px;
+  height: 56px;
+}
+
+html.console-kit .bmo-image-studio {
+  top: 12px;
+  bottom: auto;
+  width: 420px;
+  max-height: calc(100vh - 24px);
+  overflow-y: auto;
+}
+
+html.console-kit .bmo-studio-canvas-wrap {
+  max-width: 220px;
+}

@@ -31,6 +31,14 @@ import {
   loadSavedGallery,
   saveToGallery,
 } from './image-gen.js?v=12';
+import { isConsole, start as startConsoleKit } from './console-kit.js?v=13';
+
+// Xbox One: the console's browser tab ran out of memory loading BMO's brain (29 Oct), so there BMO loads no model,
+// never asks for the microphone, and says so in its own words. Every other device is unchanged.
+const ON_CONSOLE = isConsole();
+const CONSOLE_STATUS = 'BMO needs a computer or a phone';
+const CONSOLE_MESSAGE =
+  'Oh no, friend! My brain is too big to fit inside this console. Come find BMO on a computer or a phone, and we can talk and sing together! But BMO can still paint you a picture right here!';
 
 const memory = new ConversationMemory(BMO_PERSONALITY, MAX_HISTORY, { persist: true });
 let face = null;
@@ -80,7 +88,7 @@ function renderHistoryStrip() {
     who.textContent = t.role === 'user' ? 'You: ' : 'BMO: ';
     row.appendChild(who);
     row.appendChild(document.createTextNode(t.content));
-    if (t.role === 'assistant') {
+    if (t.role === 'assistant' && !ON_CONSOLE) {
       row.addEventListener('click', () => {
         void unlockAudio();
         if (els.caption) els.caption.textContent = t.content;
@@ -117,6 +125,14 @@ function buildWarmupReply(promptText) {
 
 function refreshStatusUI() {
   if (!els.status) return;
+
+  if (ON_CONSOLE) {
+    if (els.progressWrap) els.progressWrap.hidden = true;
+    face?.setMood('happy');
+    els.status.textContent = CONSOLE_STATUS;
+    els.statusDot.dataset.state = 'idle';
+    return;
+  }
 
   const aiReady = ai.status === 'ready';
   const voiceReady = speech.voiceStatus === 'ready';
@@ -287,6 +303,10 @@ export async function runImageGeneration(promptText, styleId) {
 export async function submitUserPrompt(rawText) {
   const prompt = String(rawText || '').trim();
   if (!prompt) return;
+  if (ON_CONSOLE) {
+    if (els.caption) els.caption.textContent = CONSOLE_MESSAGE;
+    return;
+  }
 
   void unlockAudio();
   stopSpeech();
@@ -439,6 +459,12 @@ async function initApp() {
   els.imagePresetChips = document.getElementById('image-preset-chips');
   els.imageGalleryStrip = document.getElementById('image-gallery-strip');
 
+  if (ON_CONSOLE) {
+    startConsoleKit({ card: false });
+    els.caption.textContent = CONSOLE_MESSAGE;
+    refreshStatusUI();
+  }
+
   // Render saved conversation history & image gallery immediately (<2ms)
   renderHistoryStrip();
   renderGalleryStrip();
@@ -454,6 +480,7 @@ async function initApp() {
     }
     els.brainSelect.value = ai.modelId;
     els.brainSelect.addEventListener('change', () => {
+      if (ON_CONSOLE) return;
       const chosen = els.brainSelect.value;
       void enableAI(chosen, { nCtx: 1024 });
     });
@@ -573,6 +600,7 @@ async function initApp() {
   });
 
   els.micBtn?.addEventListener('click', () => {
+    if (ON_CONSOLE) return;
     void unlockAudio();
     flushPendingSpeech();
     toggleListening();
@@ -619,13 +647,15 @@ async function initApp() {
   // Push-to-talk with Spacebar when not typing in an input box
   window.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
+      // On the console B arrives as Escape and then leaves the page unless it is cancelled: close the open panel only.
+      if (ON_CONSOLE && (keyboardOpen || imageStudioOpen)) e.preventDefault();
       if (keyboardOpen) toggleKeyboardBox(false);
       if (imageStudioOpen) toggleImageStudio(false);
       return;
     }
     const active = document.activeElement;
     const isTyping = active === els.promptInput || active === els.imagePromptInput;
-    if (e.code === 'Space' && !isTyping && !spaceDown) {
+    if (e.code === 'Space' && !isTyping && !spaceDown && !ON_CONSOLE) {
       e.preventDefault();
       spaceDown = true;
       void unlockAudio();
@@ -658,7 +688,7 @@ async function initApp() {
   };
   window.__BMO_DEBUG = window.bmo;
 
-  void bootModelsAndGreet();
+  if (!ON_CONSOLE) void bootModelsAndGreet();
 }
 
 if (document.readyState === 'loading') {
